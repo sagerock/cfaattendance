@@ -109,7 +109,69 @@ def review_matches(session_id):
     students = Student.query.filter_by(course_id=course.id).order_by(Student.name).all()
 
     if request.method == "POST":
-        # Process review form
+        # Process auto-match changes (reassign or unmatch)
+        auto_keys = [k for k in request.form if k.startswith("auto_match_")]
+        for key in auto_keys:
+            idx = key.replace("auto_match_", "")
+            student_id_str = request.form.get(key)
+            cleaned_name = request.form.get(f"auto_cleaned_name_{idx}", "")
+            aliases_str = request.form.get(f"auto_aliases_{idx}", "")
+            minutes = int(request.form.get(f"auto_minutes_{idx}", 0))
+            raw_names = request.form.get(f"auto_raw_names_{idx}", cleaned_name)
+            original_id = int(request.form.get(f"auto_original_{idx}", 0))
+
+            if student_id_str == "skip":
+                # Unmatch: delete attendance record, save as skipped
+                if original_id:
+                    Attendance.query.filter_by(
+                        session_id=session.id, student_id=original_id
+                    ).delete()
+                existing_skip = SkippedParticipant.query.filter_by(
+                    session_id=session.id, cleaned_name=cleaned_name
+                ).first()
+                if not existing_skip:
+                    db.session.add(SkippedParticipant(
+                        session_id=session.id,
+                        cleaned_name=cleaned_name,
+                        aliases=aliases_str,
+                        total_minutes=minutes,
+                        raw_names=raw_names,
+                    ))
+            elif int(student_id_str) != original_id:
+                # Reassigned to different student
+                new_student_id = int(student_id_str)
+                if original_id:
+                    Attendance.query.filter_by(
+                        session_id=session.id, student_id=original_id
+                    ).delete()
+                existing = Attendance.query.filter_by(
+                    session_id=session.id, student_id=new_student_id
+                ).first()
+                if existing:
+                    existing.total_minutes = minutes
+                    existing.match_method = "manual"
+                    existing.match_confidence = 1.0
+                    existing.confirmed = True
+                else:
+                    db.session.add(Attendance(
+                        session_id=session.id,
+                        student_id=new_student_id,
+                        total_minutes=minutes,
+                        match_confidence=1.0,
+                        match_method="manual",
+                        confirmed=True,
+                    ))
+                # Save aliases for new assignment
+                student = Student.query.get(new_student_id)
+                if student:
+                    for alias_name in [cleaned_name] + [a.strip() for a in aliases_str.split("|") if a.strip()]:
+                        alias_lower = alias_name.lower().strip()
+                        if not alias_lower or alias_lower == student.name.lower():
+                            continue
+                        if not Alias.query.filter_by(course_id=course.id, alias_name=alias_lower).first():
+                            db.session.add(Alias(course_id=course.id, student_id=student.id, alias_name=alias_lower))
+
+        # Process review/unmatched/skipped form
         participant_keys = [k for k in request.form if k.startswith("match_")]
 
         for key in participant_keys:

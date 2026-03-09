@@ -14,21 +14,34 @@
     {% if auto_matches %}
     <details class="mb-6 bg-white border border-stone-200 rounded-lg">
         <summary class="px-5 py-3 cursor-pointer font-semibold text-emerald-700 bg-emerald-50 rounded-t-lg">
-            Auto-matched ({{ auto_matches|length }}) — click to review
+            Auto-matched ({{ auto_matches|length }}) — click to review or change
         </summary>
         <div class="divide-y divide-stone-100">
             {% for m in auto_matches %}
-            <div class="px-5 py-3 flex items-center justify-between text-sm">
-                <div>
+            <div class="px-5 py-3 flex items-start justify-between gap-4 text-sm">
+                <div class="flex-1">
                     <span class="font-medium">{{ m.participant.cleaned_name }}</span>
                     <span class="text-stone-400 ml-2">({{ m.participant.total_minutes }} min)</span>
                     {% if m.participant.raw_names|length > 1 %}
                     <span class="text-stone-400 ml-1">[{{ m.participant.raw_names|length }} entries merged]</span>
                     {% endif %}
+                    <span class="text-xs px-2 py-0.5 bg-stone-100 rounded ml-1">{{ m.method }}</span>
                 </div>
-                <div class="flex items-center gap-2">
-                    <span class="text-emerald-600">&rarr; {{ m.student_name }}</span>
-                    <span class="text-xs px-2 py-0.5 bg-stone-100 rounded">{{ m.method }}</span>
+                <div class="flex-shrink-0">
+                    <input type="hidden" name="auto_cleaned_name_{{ loop.index0 }}" value="{{ m.participant.cleaned_name }}">
+                    <input type="hidden" name="auto_aliases_{{ loop.index0 }}" value="{{ m.participant.aliases|join('|') }}">
+                    <input type="hidden" name="auto_minutes_{{ loop.index0 }}" value="{{ m.participant.total_minutes }}">
+                    <input type="hidden" name="auto_raw_names_{{ loop.index0 }}" value="{{ m.participant.raw_names|join('|') }}">
+                    <input type="hidden" name="auto_original_{{ loop.index0 }}" value="{{ m.student_id }}">
+                    <select name="auto_match_{{ loop.index0 }}"
+                            class="text-sm border border-stone-300 rounded-lg px-2 py-1.5 min-w-[320px]">
+                        {% for s in students %}
+                        <option value="{{ s.id }}" {% if s.id == m.student_id %}selected{% endif %}>
+                            {{ s.name }}{% if s.email %} ({{ s.email }}){% endif %}
+                        </option>
+                        {% endfor %}
+                        <option value="skip">-- Unmatch / skip --</option>
+                    </select>
                 </div>
             </div>
             {% endfor %}
