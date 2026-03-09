@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Session Report — {{ session.label }}{% endblock %}
+{% block content %}
+<div class="mb-6">
+    <a href="/courses/{{ course.id }}" class="text-sm text-stone-500 hover:text-stone-700">&larr; {{ course.name }}</a>
+    <div class="flex items-center justify-between mt-1">
+        <div>
+            <h1 class="text-2xl font-bold">{{ session.label or session.zoom_topic }}</h1>
+            {% if session.session_date %}
+            <p class="text-sm text-stone-500">{{ session.session_date.strftime('%B %d, %Y') }}
+                · {{ session.duration_minutes }} min meeting</p>
+            {% endif %}
+        </div>
+        <a href="/sessions/{{ session.id }}/review"
+           class="px-4 py-2 border border-stone-300 rounded-lg hover:bg-stone-50 transition text-sm">
+            Edit Matches
+        </a>
+    </div>
+</div>
+
+<div class="grid md:grid-cols-3 gap-4 mb-6">
+    <div class="bg-emerald-50 border border-emerald-200 rounded-lg px-5 py-4 text-center">
+        <div class="text-3xl font-bold text-emerald-700">{{ present|length }}</div>
+        <div class="text-sm text-emerald-600 mt-1">Present</div>
+    </div>
+    <div class="bg-amber-50 border border-amber-200 rounded-lg px-5 py-4 text-center">
+        <div class="text-3xl font-bold text-amber-700">{{ uncertain|length + skipped|length }}</div>
+        <div class="text-sm text-amber-600 mt-1">Unsure</div>
+    </div>
+    <div class="bg-red-50 border border-red-200 rounded-lg px-5 py-4 text-center">
+        <div class="text-3xl font-bold text-red-700">{{ absent|length }}</div>
+        <div class="text-sm text-red-600 mt-1">Absent</div>
+    </div>
+</div>
+
+<!-- Present -->
+<div class="mb-6 bg-white border border-stone-200 rounded-lg">
+    <div class="px-5 py-3 border-b border-stone-200 bg-emerald-50 rounded-t-lg">
+        <h2 class="font-semibold text-emerald-700">Present ({{ present|length }})</h2>
+    </div>
+    <table class="w-full text-sm">
+        <thead>
+            <tr class="border-b border-stone-100 text-stone-500">
+                <th class="px-5 py-2 text-left font-medium">Student</th>
+                <th class="px-5 py-2 text-left font-medium">Email</th>
+                <th class="px-5 py-2 text-right font-medium">Minutes</th>
+                <th class="px-5 py-2 text-right font-medium">How matched</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in present %}
+            <tr class="border-b border-stone-50">
+                <td class="px-5 py-2 font-medium">{{ p.student.name }}</td>
+                <td class="px-5 py-2 text-stone-400">{{ p.student.email or '—' }}</td>
+                <td class="px-5 py-2 text-right">{{ p.minutes }}</td>
+                <td class="px-5 py-2 text-right">
+                    <span class="text-xs px-2 py-0.5 rounded
+                        {% if p.method == 'manual' %}bg-blue-100 text-blue-700
+                        {% elif p.method == 'exact' %}bg-emerald-100 text-emerald-700
+                        {% else %}bg-stone-100 text-stone-600{% endif %}">
+                        {{ p.method }}
+                    </span>
+                </td>
+            </tr>
+            {% endfor %}
+            {% if not present %}
+            <tr><td colspan="4" class="px-5 py-4 text-stone-400 text-center">No confirmed attendees yet.</td></tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Unsure -->
+{% if uncertain or skipped %}
+<div class="mb-6 bg-white border border-stone-200 rounded-lg">
+    <div class="px-5 py-3 border-b border-stone-200 bg-amber-50 rounded-t-lg">
+        <h2 class="font-semibold text-amber-700">Unsure ({{ uncertain|length + skipped|length }})</h2>
+    </div>
+    <div class="divide-y divide-stone-100">
+        {% for u in uncertain %}
+        <div class="px-5 py-3 flex items-center justify-between">
+            <div>
+                <span class="font-medium text-sm">{{ u.student.name }}</span>
+                <span class="text-xs text-amber-600 ml-2">unconfirmed {{ u.method }} match · {{ u.minutes }} min</span>
+            </div>
+        </div>
+        {% endfor %}
+        {% for s in skipped %}
+        <div class="px-5 py-3 flex items-center justify-between">
+            <div>
+                <span class="font-medium text-sm">{{ s.cleaned_name }}</span>
+                <span class="text-xs text-stone-400 ml-2">skipped · {{ s.total_minutes }} min</span>
+                {% if s.raw_names %}
+                <span class="text-xs text-stone-400 ml-1">({{ s.raw_names }})</span>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Absent -->
+<div class="mb-6 bg-white border border-stone-200 rounded-lg">
+    <div class="px-5 py-3 border-b border-stone-200 bg-red-50 rounded-t-lg">
+        <h2 class="font-semibold text-red-700">Absent ({{ absent|length }})</h2>
+    </div>
+    <div class="px-5 py-3">
+        {% if absent %}
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1">
+            {% for s in absent %}
+            <div class="text-sm py-1">
+                <span class="font-medium">{{ s.name }}</span>
+                {% if s.email %}
+                <span class="text-stone-400 text-xs ml-1">{{ s.email }}</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-stone-400 text-sm">Everyone showed up!</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

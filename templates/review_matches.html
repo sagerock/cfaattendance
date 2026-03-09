@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+{% block title %}Review Matches — {{ session.label }}{% endblock %}
+{% block content %}
+<div class="mb-6">
+    <a href="/courses/{{ course.id }}" class="text-sm text-stone-500 hover:text-stone-700">&larr; {{ course.name }}</a>
+    <h1 class="text-2xl font-bold mt-1">Review Matches: {{ session.label }}</h1>
+    {% if session.session_date %}
+    <p class="text-sm text-stone-500">{{ session.session_date.strftime('%B %d, %Y') }}</p>
+    {% endif %}
+</div>
+
+<form method="POST">
+    <!-- Auto-matched (collapsed by default) -->
+    {% if auto_matches %}
+    <details class="mb-6 bg-white border border-stone-200 rounded-lg">
+        <summary class="px-5 py-3 cursor-pointer font-semibold text-emerald-700 bg-emerald-50 rounded-t-lg">
+            Auto-matched ({{ auto_matches|length }}) — click to review
+        </summary>
+        <div class="divide-y divide-stone-100">
+            {% for m in auto_matches %}
+            <div class="px-5 py-3 flex items-center justify-between text-sm">
+                <div>
+                    <span class="font-medium">{{ m.participant.cleaned_name }}</span>
+                    <span class="text-stone-400 ml-2">({{ m.participant.total_minutes }} min)</span>
+                    {% if m.participant.raw_names|length > 1 %}
+                    <span class="text-stone-400 ml-1">[{{ m.participant.raw_names|length }} entries merged]</span>
+                    {% endif %}
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-emerald-600">&rarr; {{ m.student_name }}</span>
+                    <span class="text-xs px-2 py-0.5 bg-stone-100 rounded">{{ m.method }}</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </details>
+    {% endif %}
+
+    <!-- Needs Review -->
+    {% if review_matches %}
+    <div class="mb-6">
+        <h2 class="text-lg font-semibold mb-3 text-amber-700">Uncertain Matches ({{ review_matches|length }})</h2>
+        <div class="space-y-3">
+            {% for m in review_matches %}
+            <div class="bg-white border border-amber-200 rounded-lg px-5 py-4">
+                <div class="flex items-start justify-between gap-4">
+                    <div class="flex-1">
+                        <div class="font-medium">{{ m.participant.cleaned_name }}</div>
+                        <div class="text-xs text-stone-400 mt-1">
+                            {{ m.participant.total_minutes }} min ·
+                            Raw: {{ m.participant.raw_names|join(', ') }}
+                        </div>
+                        {% if m.participant.email %}
+                        <div class="text-xs text-stone-500 mt-1">Zoom email: {{ m.participant.email }}</div>
+                        {% endif %}
+                        <div class="text-xs text-amber-600 mt-1">
+                            Best guess: {{ m.student_name }} ({{ (m.confidence * 100)|int }}% confidence)
+                        </div>
+                    </div>
+                    <div class="flex-shrink-0">
+                        <input type="hidden" name="cleaned_name_{{ loop.index0 }}" value="{{ m.participant.cleaned_name }}">
+                        <input type="hidden" name="aliases_{{ loop.index0 }}" value="{{ m.participant.aliases|join('|') }}">
+                        <input type="hidden" name="minutes_{{ loop.index0 }}" value="{{ m.participant.total_minutes }}">
+                        <input type="hidden" name="raw_names_{{ loop.index0 }}" value="{{ m.participant.raw_names|join('|') }}">
+                        <select name="match_{{ loop.index0 }}"
+                                class="text-sm border border-stone-300 rounded-lg px-2 py-1.5 min-w-[320px]">
+                            <option value="skip">-- Skip for now --</option>
+                            {% for s in students %}
+                            <option value="{{ s.id }}" {% if s.id == m.student_id %}selected{% endif %}>
+                                {{ s.name }}{% if s.email %} ({{ s.email }}){% endif %}
+                            </option>
+                            {% endfor %}
+                            <option value="new">+ Add as new student</option>
+                        </select>
+                        <input type="text" name="new_name_{{ loop.index0 }}" value="{{ m.participant.cleaned_name }}"
+                               class="text-sm border border-stone-300 rounded-lg px-2 py-1.5 mt-1 w-full hidden"
+                               placeholder="New student name">
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Unmatched -->
+    {% if unmatched %}
+    <div class="mb-6">
+        <h2 class="text-lg font-semibold mb-3 text-red-700">Unmatched ({{ unmatched|length }})</h2>
+        <div class="space-y-3">
+            {% for m in unmatched %}
+            <div class="bg-white border border-red-200 rounded-lg px-5 py-4">
+                <div class="flex items-start justify-between gap-4">
+                    <div class="flex-1">
+                        <div class="font-medium">{{ m.participant.cleaned_name }}</div>
+                        <div class="text-xs text-stone-400 mt-1">
+                            {{ m.participant.total_minutes }} min ·
+                            Raw: {{ m.participant.raw_names|join(', ') }}
+                        </div>
+                        {% if m.participant.email %}
+                        <div class="text-xs text-stone-500 mt-1">Zoom email: {{ m.participant.email }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="flex-shrink-0">
+                        <input type="hidden" name="cleaned_name_{{ loop.index0 + (review_matches|length) }}" value="{{ m.participant.cleaned_name }}">
+                        <input type="hidden" name="aliases_{{ loop.index0 + (review_matches|length) }}" value="{{ m.participant.aliases|join('|') }}">
+                        <input type="hidden" name="minutes_{{ loop.index0 + (review_matches|length) }}" value="{{ m.participant.total_minutes }}">
+                        <input type="hidden" name="raw_names_{{ loop.index0 + (review_matches|length) }}" value="{{ m.participant.raw_names|join('|') }}">
+                        <select name="match_{{ loop.index0 + (review_matches|length) }}"
+                                class="text-sm border border-stone-300 rounded-lg px-2 py-1.5 min-w-[320px]">
+                            <option value="skip">-- Skip for now --</option>
+                            {% for s in students %}
+                            <option value="{{ s.id }}">{{ s.name }}{% if s.email %} ({{ s.email }}){% endif %}</option>
+                            {% endfor %}
+                            <option value="new">+ Add as new student</option>
+                        </select>
+                        <input type="text" name="new_name_{{ loop.index0 + (review_matches|length) }}" value="{{ m.participant.cleaned_name }}"
+                               class="text-sm border border-stone-300 rounded-lg px-2 py-1.5 mt-1 w-full hidden"
+                               placeholder="New student name">
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Previously Skipped -->
+    {% if skipped %}
+    <div class="mb-6">
+        <h2 class="text-lg font-semibold mb-3 text-stone-600">Previously Skipped ({{ skipped|length }})</h2>
+        <div class="space-y-3">
+            {% set offset = (review_matches|length) + (unmatched|length) %}
+            {% for s in skipped %}
+            <div class="bg-white border border-stone-300 border-dashed rounded-lg px-5 py-4">
+                <div class="flex items-start justify-between gap-4">
+                    <div class="flex-1">
+                        <div class="font-medium">{{ s.cleaned_name }}</div>
+                        <div class="text-xs text-stone-400 mt-1">
+                            {{ s.total_minutes }} min
+                            {% if s.raw_names %} · Raw: {{ s.raw_names }}{% endif %}
+                        </div>
+                    </div>
+                    <div class="flex-shrink-0">
+                        <input type="hidden" name="cleaned_name_{{ offset + loop.index0 }}" value="{{ s.cleaned_name }}">
+                        <input type="hidden" name="aliases_{{ offset + loop.index0 }}" value="{{ s.aliases or '' }}">
+                        <input type="hidden" name="minutes_{{ offset + loop.index0 }}" value="{{ s.total_minutes }}">
+                        <input type="hidden" name="raw_names_{{ offset + loop.index0 }}" value="{{ s.raw_names or '' }}">
+                        <select name="match_{{ offset + loop.index0 }}"
+                                class="text-sm border border-stone-300 rounded-lg px-2 py-1.5 min-w-[320px]">
+                            <option value="skip">-- Still skip --</option>
+                            {% for st in students %}
+                            <option value="{{ st.id }}">{{ st.name }}{% if st.email %} ({{ st.email }}){% endif %}</option>
+                            {% endfor %}
+                            <option value="new">+ Add as new student</option>
+                        </select>
+                        <input type="text" name="new_name_{{ offset + loop.index0 }}" value="{{ s.cleaned_name }}"
+                               class="text-sm border border-stone-300 rounded-lg px-2 py-1.5 mt-1 w-full hidden"
+                               placeholder="New student name">
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Absent Students — manual add -->
+    {% if absent_students %}
+    <details class="mb-6 bg-white border border-stone-200 rounded-lg">
+        <summary class="px-5 py-3 cursor-pointer font-semibold text-stone-600 bg-stone-50 rounded-t-lg">
+            Absent students ({{ absent_students|length }}) — check to mark present (e.g. watched recording)
+        </summary>
+        <div class="px-5 py-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {% for s in absent_students %}
+                <label class="flex items-center gap-2 text-sm py-1.5 px-2 rounded hover:bg-stone-50 cursor-pointer">
+                    <input type="checkbox" name="manual_present" value="{{ s.id }}" class="rounded">
+                    <span>{{ s.name }}</span>
+                    {% if s.email %}
+                    <span class="text-stone-400 text-xs truncate">{{ s.email }}</span>
+                    {% endif %}
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+    </details>
+    {% endif %}
+
+    <div class="flex gap-3">
+        <button type="submit" class="px-5 py-2.5 bg-stone-800 text-white rounded-lg hover:bg-stone-700 transition font-medium">
+            Confirm All Matches
+        </button>
+        <a href="/courses/{{ course.id }}" class="px-5 py-2.5 border border-stone-300 rounded-lg hover:bg-stone-50 transition">
+            Cancel
+        </a>
+    </div>
+</form>
+
+<script>
+// Show/hide new student name input based on dropdown
+document.querySelectorAll('select[name^="match_"]').forEach(sel => {
+    const idx = sel.name.replace('match_', '');
+    const nameInput = document.querySelector(`input[name="new_name_${idx}"]`);
+    if (nameInput) {
+        sel.addEventListener('change', () => {
+            nameInput.classList.toggle('hidden', sel.value !== 'new');
+        });
+    }
+});
+</script>
+{% endblock %}

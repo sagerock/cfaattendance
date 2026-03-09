@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Attendance — {{ course.name }}{% endblock %}
+{% block content %}
+<div class="mb-6">
+    <a href="/courses/{{ course.id }}" class="text-sm text-stone-500 hover:text-stone-700">&larr; {{ course.name }}</a>
+    <div class="flex items-center justify-between mt-1">
+        <h1 class="text-2xl font-bold">Attendance Dashboard</h1>
+        <a href="/courses/{{ course.id }}/attendance/export"
+           class="px-4 py-2 border border-stone-300 rounded-lg hover:bg-stone-50 transition text-sm">
+            Export CSV
+        </a>
+    </div>
+</div>
+
+{% if not sessions %}
+<p class="text-stone-500 text-center py-12">No sessions yet.</p>
+{% else %}
+<div class="bg-white border border-stone-200 rounded-lg overflow-x-auto">
+    <table class="w-full text-sm">
+        <thead>
+            <tr class="bg-stone-50 border-b border-stone-200">
+                <th class="px-4 py-3 text-left font-semibold sticky left-0 bg-stone-50 z-10">Student</th>
+                {% for session in sessions %}
+                <th class="px-3 py-3 text-center font-medium whitespace-nowrap">
+                    {{ session.label or session.session_date.strftime('%m/%d') if session.session_date else 'S' ~ loop.index }}
+                </th>
+                {% endfor %}
+                <th class="px-4 py-3 text-center font-semibold">Attended</th>
+                <th class="px-4 py-3 text-center font-semibold">%</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for student in students %}
+            <tr class="border-b border-stone-100 {% if stats[student.id].below_threshold %}bg-red-50{% endif %}">
+                <td class="px-4 py-2 font-medium sticky left-0 {% if stats[student.id].below_threshold %}bg-red-50{% else %}bg-white{% endif %} z-10">
+                    {{ student.name }}
+                    {% if stats[student.id].below_threshold %}
+                    <span class="text-red-500 text-xs ml-1">below 80%</span>
+                    {% endif %}
+                </td>
+                {% for session in sessions %}
+                <td class="px-3 py-2 text-center">
+                    {% if session.id in grid[student.id] %}
+                    <span class="inline-block w-6 h-6 leading-6 rounded-full bg-emerald-100 text-emerald-700 text-xs" title="{{ grid[student.id][session.id].total_minutes }} min">
+                        P
+                    </span>
+                    {% else %}
+                    <span class="inline-block w-6 h-6 leading-6 rounded-full bg-stone-100 text-stone-400 text-xs">
+                        —
+                    </span>
+                    {% endif %}
+                </td>
+                {% endfor %}
+                <td class="px-4 py-2 text-center">{{ stats[student.id].present }}/{{ stats[student.id].total }}</td>
+                <td class="px-4 py-2 text-center font-medium
+                    {% if stats[student.id].below_threshold %}text-red-600{% else %}text-emerald-600{% endif %}">
+                    {{ stats[student.id].percentage|int }}%
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="mt-4 flex gap-4 text-xs text-stone-500">
+    <span><span class="inline-block w-3 h-3 rounded-full bg-emerald-100 mr-1"></span> Present</span>
+    <span><span class="inline-block w-3 h-3 rounded-full bg-stone-100 mr-1"></span> Absent</span>
+    <span><span class="inline-block w-3 h-3 rounded-full bg-red-100 mr-1"></span> Below 80% threshold</span>
+</div>
+{% endif %}
+{% endblock %}
