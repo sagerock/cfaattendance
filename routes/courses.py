@@ -113,6 +113,33 @@ def edit_roster(course_id):
     return render_template("edit_roster.html", course=course)
 
 
+@courses_bp.route("/courses/<int:course_id>/roster/add", methods=["POST"])
+def add_students(course_id):
+    course = Course.query.get_or_404(course_id)
+    names = request.form.getlist("new_name")
+    emails = request.form.getlist("new_email")
+    phones = request.form.getlist("new_phone")
+
+    added = 0
+    for i, name in enumerate(names):
+        name = name.strip()
+        if not name:
+            continue
+        email = emails[i].strip() if i < len(emails) else ""
+        phone = phones[i].strip() if i < len(phones) else ""
+        existing = Student.query.filter_by(course_id=course.id, name=name).first()
+        if not existing:
+            db.session.add(Student(
+                course_id=course.id, name=name,
+                email=email or None, phone=phone or None,
+            ))
+            added += 1
+
+    db.session.commit()
+    flash(f"Added {added} student{'s' if added != 1 else ''}.", "success")
+    return redirect(url_for("courses.edit_roster", course_id=course.id))
+
+
 @courses_bp.route("/courses/<int:course_id>/delete", methods=["POST"])
 def delete_course(course_id):
     course = Course.query.get_or_404(course_id)

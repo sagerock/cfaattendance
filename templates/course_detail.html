@@ -12,12 +12,10 @@
         <div class="flex items-center justify-between mb-4">
             <h2 class="text-lg font-semibold">Roster ({{ course.students|length }})</h2>
             <div class="flex gap-2">
-                {% if course.students %}
                 <a href="/courses/{{ course.id }}/roster/edit"
                    class="text-sm px-3 py-1.5 border border-stone-300 rounded-lg hover:bg-stone-50 transition">
                     Edit
                 </a>
-                {% endif %}
                 <a href="/courses/{{ course.id }}/roster"
                    class="text-sm px-3 py-1.5 bg-stone-800 text-white rounded-lg hover:bg-stone-700 transition">
                     Upload Roster
