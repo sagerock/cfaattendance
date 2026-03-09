@@ -235,13 +235,20 @@ def review_matches(session_id):
     aliases_db = Alias.query.filter_by(course_id=course.id).all()
     matches = match_participants_to_roster(consolidated, students, aliases_db, course.id)
 
-    # Split into categories
-    auto_matches = [m for m in matches if m["status"] == "auto"]
-    review_matches_list = [m for m in matches if m["status"] == "review"]
-    unmatched = [m for m in matches if m["status"] == "unmatched"]
-
     # Load previously skipped entries
     skipped = SkippedParticipant.query.filter_by(session_id=session.id).all()
+    skipped_names = {s.cleaned_name.lower() for s in skipped}
+
+    # Split into categories, filtering out already-skipped participants
+    auto_matches = [m for m in matches if m["status"] == "auto"]
+    review_matches_list = [
+        m for m in matches if m["status"] == "review"
+        and m["participant"]["cleaned_name"].lower() not in skipped_names
+    ]
+    unmatched = [
+        m for m in matches if m["status"] == "unmatched"
+        and m["participant"]["cleaned_name"].lower() not in skipped_names
+    ]
 
     # Find absent students (on roster, no confirmed attendance, not auto-matched)
     confirmed_ids = {
