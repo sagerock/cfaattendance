@@ -9,9 +9,11 @@ def create_app():
     basedir = os.path.abspath(os.path.dirname(__file__))
     db_path = os.path.join(basedir, "instance", "cfa_attendance.db")
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
-    app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
-        "DATABASE_URL", f"sqlite:///{db_path}"
-    )
+    db_url = os.environ.get("DATABASE_URL", f"sqlite:///{db_path}")
+    # Railway uses postgres:// but SQLAlchemy requires postgresql://
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+    app.config["SQLALCHEMY_DATABASE_URI"] = db_url
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16MB upload limit
 
