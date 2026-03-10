@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from extensions import db
 from models import Course, Student, Session, ZoomParticipant, Attendance, Alias, SkippedParticipant
 from zoom_parser import parse_zoom_csv
@@ -354,29 +354,43 @@ def zoom_sync(course_id):
         flash(f"Error fetching Zoom meetings: {e}", "error")
         return redirect(url_for("courses.course_detail", course_id=course_id))
 
-    # Enrich each instance with participant count, details, and recordings
+    # Return basic instance list — details loaded via AJAX
     meetings = []
-    for inst in instances[:20]:  # Last 20 meetings max
-        try:
-            details = zoom_api.get_meeting_details(inst["uuid"])
-            details["start_time"] = inst["start_time"]
-            meetings.append(details)
-        except Exception:
-            # If we can't get details for an instance, include basic info
-            meetings.append({
-                "uuid": inst["uuid"],
-                "topic": "",
-                "start_time": inst["start_time"],
-                "duration_minutes": 0,
-                "participant_count": 0,
-            })
-        # Fetch recordings for this instance
-        try:
-            meetings[-1]["recordings"] = zoom_api.get_meeting_recordings(inst["uuid"])
-        except Exception:
-            meetings[-1]["recordings"] = []
+    for inst in instances:
+        start = inst["start_time"]
+        meetings.append({
+            "uuid": inst["uuid"],
+            "start_time_display": start.strftime("%B %d, %Y at %I:%M %p") if start else "Unknown date",
+            "start_time_iso": start.isoformat() if start else "",
+        })
 
     return render_template("zoom_sync.html", course=course, meetings=meetings)
+
+
+@sessions_bp.route("/zoom-meeting-details/<path:meeting_uuid>")
+def zoom_meeting_details(meeting_uuid):
+    """AJAX endpoint: return details + recordings for a single meeting instance."""
+    if not zoom_api.is_configured():
+        return jsonify({"error": "not configured"}), 500
+
+    details = {}
+    try:
+        details = zoom_api.get_meeting_details(meeting_uuid)
+    except Exception:
+        pass
+
+    recordings = []
+    try:
+        recordings = zoom_api.get_meeting_recordings(meeting_uuid)
+    except Exception:
+        pass
+
+    return jsonify({
+        "topic": details.get("topic", ""),
+        "duration_minutes": details.get("duration_minutes", 0),
+        "participant_count": details.get("participant_count", 0),
+        "recordings": recordings,
+    })
 
 
 @sessions_bp.route("/zoom-recording-download")
