@@ -1,6 +1,9 @@
 import os
-from flask import Flask
+from flask import Flask, request, session, redirect, url_for, render_template
 from extensions import db
+
+AUTH_USERNAME = os.environ.get("AUTH_USERNAME", "cfa")
+AUTH_PASSWORD = os.environ.get("AUTH_PASSWORD", "attendance")
 
 
 def create_app():
@@ -26,6 +29,31 @@ def create_app():
     app.register_blueprint(courses_bp)
     app.register_blueprint(sessions_bp)
     app.register_blueprint(reports_bp)
+
+    @app.before_request
+    def require_login():
+        if request.endpoint == "login" or request.endpoint == "static":
+            return
+        if not session.get("authenticated"):
+            return redirect(url_for("login"))
+
+    @app.route("/login", methods=["GET", "POST"])
+    def login():
+        error = None
+        if request.method == "POST":
+            if (
+                request.form.get("username") == AUTH_USERNAME
+                and request.form.get("password") == AUTH_PASSWORD
+            ):
+                session["authenticated"] = True
+                return redirect(url_for("courses.index"))
+            error = "Invalid credentials."
+        return render_template("login.html", error=error)
+
+    @app.route("/logout")
+    def logout():
+        session.clear()
+        return redirect(url_for("login"))
 
     with app.app_context():
         import models  # noqa: F401
