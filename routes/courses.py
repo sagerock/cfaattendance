@@ -151,6 +151,9 @@ def add_students(course_id):
 def set_zoom_room(course_id):
     course = Course.query.get_or_404(course_id)
     meeting_id = request.form.get("zoom_meeting_id", "").strip()
+    # If "custom" was selected, use the custom input instead
+    if meeting_id == "custom":
+        meeting_id = request.form.get("custom_zoom_meeting_id", "").strip()
     # Strip any non-numeric characters (users might paste with spaces or dashes)
     meeting_id = "".join(c for c in meeting_id if c.isdigit())
     course.zoom_meeting_id = meeting_id or None

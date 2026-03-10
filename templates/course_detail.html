@@ -69,12 +69,19 @@
             <form method="POST" action="/courses/{{ course.id }}/zoom-room" class="flex gap-2 items-end">
                 <div class="flex-1">
                     <label class="block text-xs font-semibold uppercase tracking-wider text-sage-dark mb-1">Link Zoom Room</label>
-                    <select name="zoom_meeting_id" class="w-full text-sm rounded-lg px-2 py-1.5">
+                    <select name="zoom_meeting_id" class="w-full text-sm rounded-lg px-2 py-1.5"
+                            onchange="document.getElementById('custom-zoom-{{course.id}}').style.display = this.value === 'custom' ? 'block' : 'none'; if(this.value !== 'custom') document.getElementById('custom-zoom-input-{{course.id}}').value = '';">
                         <option value="">Select a Zoom room...</option>
                         {% for room in zoom_rooms %}
                         <option value="{{ room.id }}">{{ room.name }}</option>
                         {% endfor %}
+                        <option value="custom">Other (enter ID manually)</option>
                     </select>
+                    <div id="custom-zoom-{{course.id}}" style="display:none" class="mt-2">
+                        <input type="text" id="custom-zoom-input-{{course.id}}" name="custom_zoom_meeting_id"
+                               placeholder="Enter Zoom Meeting ID (e.g. 957 0825 1566)"
+                               class="w-full text-sm rounded-lg px-2 py-1.5">
+                    </div>
                 </div>
                 <button type="submit" class="text-sm px-3 py-1.5 bg-sage text-white rounded-lg hover:bg-sage-dark transition font-semibold whitespace-nowrap">
                     Link Room
