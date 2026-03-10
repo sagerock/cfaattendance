@@ -181,6 +181,49 @@ def get_meeting_participants(meeting_uuid):
     }
 
 
+def get_meeting_recordings(meeting_id):
+    """Get cloud recording files for a meeting instance.
+
+    Accepts a meeting UUID or numeric meeting ID.
+    Returns list of dicts with keys: file_type, file_size_mb, download_url, recording_type, status.
+    Returns empty list if no recordings or insufficient scopes.
+    """
+    encoded_id = str(meeting_id)
+    if "/" in encoded_id:
+        import urllib.parse
+        encoded_id = urllib.parse.quote(urllib.parse.quote(encoded_id, safe=""), safe="")
+
+    try:
+        data = _api_get(f"/meetings/{encoded_id}/recordings")
+    except requests.exceptions.HTTPError as e:
+        log.info("recordings for %s returned %s", meeting_id, e.response.status_code)
+        return []
+
+    recordings = []
+    for f in data.get("recording_files", []):
+        file_type = f.get("file_type", "")
+        if file_type not in ("MP4", "M4A", "CHAT", "TRANSCRIPT", "CSV", "TIMELINE"):
+            continue
+        size_bytes = f.get("file_size", 0)
+        recordings.append({
+            "file_type": file_type,
+            "recording_type": f.get("recording_type", ""),
+            "file_size_mb": round(size_bytes / (1024 * 1024), 1) if size_bytes else 0,
+            "download_url": f.get("download_url", ""),
+            "status": f.get("status", ""),
+        })
+    return recordings
+
+
+def get_recording_download_url(file_download_url):
+    """Get an authenticated download URL for a recording file.
+
+    Appends the current access token as a query parameter.
+    """
+    token = _get_access_token()
+    return f"{file_download_url}?access_token={token}"
+
+
 def get_meeting_details(meeting_uuid):
     """Get basic details for a past meeting instance (topic, participant count, duration)."""
     encoded_uuid = meeting_uuid

@@ -354,7 +354,7 @@ def zoom_sync(course_id):
         flash(f"Error fetching Zoom meetings: {e}", "error")
         return redirect(url_for("courses.course_detail", course_id=course_id))
 
-    # Enrich each instance with participant count and details
+    # Enrich each instance with participant count, details, and recordings
     meetings = []
     for inst in instances[:20]:  # Last 20 meetings max
         try:
@@ -370,8 +370,24 @@ def zoom_sync(course_id):
                 "duration_minutes": 0,
                 "participant_count": 0,
             })
+        # Fetch recordings for this instance
+        try:
+            meetings[-1]["recordings"] = zoom_api.get_meeting_recordings(inst["uuid"])
+        except Exception:
+            meetings[-1]["recordings"] = []
 
     return render_template("zoom_sync.html", course=course, meetings=meetings)
+
+
+@sessions_bp.route("/zoom-recording-download")
+def zoom_recording_download():
+    """Redirect to an authenticated Zoom recording download URL."""
+    download_url = request.args.get("url", "")
+    if not download_url or not zoom_api.is_configured():
+        flash("Invalid recording download request.", "error")
+        return redirect(url_for("courses.index"))
+    authenticated_url = zoom_api.get_recording_download_url(download_url)
+    return redirect(authenticated_url)
 
 
 @sessions_bp.route("/courses/<int:course_id>/zoom-import", methods=["POST"])
