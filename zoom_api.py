@@ -14,6 +14,19 @@ ZOOM_CLIENT_SECRET = os.environ.get("ZOOM_CLIENT_SECRET", "")
 
 _token_cache = {"token": None, "expires_at": 0}
 
+# Pre-configured CfA Zoom rooms
+ZOOM_ROOMS = [
+    {"id": "95708251566", "name": "Room 1 — Kairos", "url": "https://centerforanthroposophy.org/zoomroom1"},
+    {"id": "94044919894", "name": "Room 2 — Explorations", "url": "https://centerforanthroposophy.org/zoomroom2"},
+    {"id": "92497675355", "name": "Room 3 — Leadership & Mentor Training", "url": "https://centerforanthroposophy.org/zoomroom3"},
+    {"id": "92683369848", "name": "Room 4 — High School & Starlight Rays", "url": "https://centerforanthroposophy.org/zoomroom4"},
+    {"id": "95532564222", "name": "Room 5 — Spare", "url": "https://centerforanthroposophy.org/zoomroom5"},
+    {"id": "95349873060", "name": "Room 6 — Animal Therapy", "url": "https://centerforanthroposophy.org/zoomroom6"},
+    {"id": "94670151742", "name": "Room 7 — Spare", "url": "https://centerforanthroposophy.org/zoomroom7"},
+    {"id": "99651281937", "name": "Room 8 — Spare", "url": "https://centerforanthroposophy.org/zoomroom8"},
+    {"id": "96223727487", "name": "Room 9 — Spare", "url": "https://centerforanthroposophy.org/zoomroom9"},
+]
+
 
 def _get_access_token():
     """Get a Server-to-Server OAuth access token, cached until expiry."""

@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash
 from extensions import db
 from models import Course, Student
 from roster_parser import parse_roster_csv
+from zoom_api import ZOOM_ROOMS
 
 courses_bp = Blueprint("courses", __name__)
 
@@ -28,7 +29,13 @@ def create_course():
 @courses_bp.route("/courses/<int:course_id>")
 def course_detail(course_id):
     course = Course.query.get_or_404(course_id)
-    return render_template("course_detail.html", course=course)
+    zoom_room_name = None
+    if course.zoom_meeting_id:
+        for room in ZOOM_ROOMS:
+            if room["id"] == course.zoom_meeting_id:
+                zoom_room_name = room["name"]
+                break
+    return render_template("course_detail.html", course=course, zoom_rooms=ZOOM_ROOMS, zoom_room_name=zoom_room_name)
 
 
 @courses_bp.route("/courses/<int:course_id>/roster", methods=["GET", "POST"])
