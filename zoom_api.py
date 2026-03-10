@@ -1,9 +1,12 @@
 """Zoom Server-to-Server OAuth API client for pulling meeting reports."""
 
+import logging
 import os
 import time
 import requests
 from datetime import datetime, date
+
+log = logging.getLogger(__name__)
 
 ZOOM_ACCOUNT_ID = os.environ.get("ZOOM_ACCOUNT_ID", "")
 ZOOM_CLIENT_ID = os.environ.get("ZOOM_CLIENT_ID", "")
@@ -49,25 +52,71 @@ def is_configured():
 
 
 def list_past_meeting_instances(meeting_id):
-    """List past instances of a recurring meeting.
+    """List past instances of a meeting room.
 
-    Returns list of dicts with keys: uuid, start_time (datetime), duration (minutes).
+    Tries /past_meetings/{id}/instances first (recurring meetings).
+    Falls back to /report/meetings/{id} for the most recent instance.
+
+    Returns list of dicts with keys: uuid, start_time (datetime).
     Sorted newest first.
     """
-    data = _api_get(f"/past_meetings/{meeting_id}/instances")
-    instances = []
-    for m in data.get("meetings", []):
-        start = m.get("start_time", "")
-        try:
-            start_dt = datetime.fromisoformat(start.replace("Z", "+00:00"))
-        except (ValueError, AttributeError):
-            start_dt = None
-        instances.append({
-            "uuid": m.get("uuid", ""),
+    # Try the recurring meeting instances endpoint first
+    try:
+        data = _api_get(f"/past_meetings/{meeting_id}/instances")
+        instances = []
+        for m in data.get("meetings", []):
+            start = m.get("start_time", "")
+            try:
+                start_dt = datetime.fromisoformat(start.replace("Z", "+00:00"))
+            except (ValueError, AttributeError):
+                start_dt = None
+            instances.append({
+                "uuid": m.get("uuid", ""),
+                "start_time": start_dt,
+            })
+        if instances:
+            instances.sort(key=lambda x: x["start_time"] or datetime.min, reverse=True)
+            return instances
+    except requests.exceptions.HTTPError as e:
+        log.info("past_meetings/%s/instances returned %s, trying fallbacks", meeting_id, e.response.status_code)
+
+    # Fallback 1: meeting report endpoint (returns last instance's report)
+    try:
+        data = _api_get(f"/report/meetings/{meeting_id}")
+        start_str = data.get("start_time", "")
+        start_dt = None
+        if start_str:
+            try:
+                start_dt = datetime.fromisoformat(start_str.replace("Z", "+00:00"))
+            except (ValueError, AttributeError):
+                pass
+        uuid = data.get("uuid", str(meeting_id))
+        log.info("Got meeting from /report/meetings/%s: uuid=%s", meeting_id, uuid)
+        return [{
+            "uuid": uuid,
             "start_time": start_dt,
-        })
-    instances.sort(key=lambda x: x["start_time"] or datetime.min, reverse=True)
-    return instances
+        }]
+    except requests.exceptions.HTTPError as e:
+        log.info("report/meetings/%s returned %s, trying next fallback", meeting_id, e.response.status_code)
+
+    # Fallback 2: past meeting details endpoint
+    try:
+        data = _api_get(f"/past_meetings/{meeting_id}")
+        start_str = data.get("start_time", "")
+        start_dt = None
+        if start_str:
+            try:
+                start_dt = datetime.fromisoformat(start_str.replace("Z", "+00:00"))
+            except (ValueError, AttributeError):
+                pass
+        return [{
+            "uuid": data.get("uuid", str(meeting_id)),
+            "start_time": start_dt,
+        }]
+    except requests.exceptions.HTTPError as e:
+        log.warning("All Zoom API fallbacks failed for meeting %s (last: %s)", meeting_id, e.response.status_code)
+
+    return []
 
 
 def get_meeting_participants(meeting_uuid):
