@@ -3,7 +3,17 @@
 {% block content %}
 <div class="mb-8">
     <a href="/" class="text-sm text-terra hover:text-terra-dark font-body transition">&larr; All Courses</a>
-    <h1 class="text-3xl font-display font-semibold mt-1">{{ course.name }}</h1>
+    <div class="flex items-center gap-3 mt-1">
+        <h1 id="course-name-display" class="text-3xl font-display font-semibold cursor-pointer hover:text-ink/70 transition"
+            onclick="document.getElementById('course-name-display').style.display='none'; document.getElementById('course-name-edit').style.display='flex';"
+            title="Click to rename">{{ course.name }}</h1>
+        <form id="course-name-edit" method="POST" action="/courses/{{ course.id }}/rename" class="items-center gap-2" style="display:none">
+            <input type="text" name="name" value="{{ course.name }}" class="text-2xl font-display font-semibold rounded-lg px-2 py-1 border border-sand-dark">
+            <button type="submit" class="text-sm px-3 py-1.5 bg-sage text-white rounded-lg hover:bg-sage-dark transition font-body font-semibold">Save</button>
+            <button type="button" class="text-sm px-3 py-1.5 text-ink-light hover:bg-parchment rounded-lg transition font-body"
+                    onclick="document.getElementById('course-name-edit').style.display='none'; document.getElementById('course-name-display').style.display='block';">Cancel</button>
+        </form>
+    </div>
 </div>
 
 <div class="grid md:grid-cols-2 gap-6">
@@ -179,11 +189,5 @@
         Export CSV
     </a>
     {% endif %}
-    <form method="POST" action="/courses/{{ course.id }}/delete" class="ml-auto"
-          onsubmit="return confirm('Delete this course and all its data?')">
-        <button type="submit" class="px-4 py-2.5 text-red-700 border border-red-200 rounded-lg hover:bg-red-50 transition font-body text-sm">
-            Delete Course
-        </button>
-    </form>
 </div>
 {% endblock %}

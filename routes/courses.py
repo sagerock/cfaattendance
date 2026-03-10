@@ -147,6 +147,19 @@ def add_students(course_id):
     return redirect(url_for("courses.edit_roster", course_id=course.id))
 
 
+@courses_bp.route("/courses/<int:course_id>/rename", methods=["POST"])
+def rename_course(course_id):
+    course = Course.query.get_or_404(course_id)
+    name = request.form.get("name", "").strip()
+    if not name:
+        flash("Course name cannot be empty.", "error")
+    else:
+        course.name = name
+        db.session.commit()
+        flash(f"Course renamed to '{name}'.", "success")
+    return redirect(url_for("courses.course_detail", course_id=course_id))
+
+
 @courses_bp.route("/courses/<int:course_id>/zoom-room", methods=["POST"])
 def set_zoom_room(course_id):
     course = Course.query.get_or_404(course_id)
