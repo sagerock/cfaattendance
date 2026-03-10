@@ -4,28 +4,173 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}CfA Attendance{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Nunito+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+    tailwind.config = {
+        theme: {
+            extend: {
+                colors: {
+                    parchment: { light: '#faf7f2', DEFAULT: '#f5f0e8', dark: '#e8e0d4' },
+                    ink: { light: '#5c4f47', DEFAULT: '#2c2420', dark: '#1a1412' },
+                    terra: { light: '#d4896e', DEFAULT: '#b5674e', dark: '#964f39' },
+                    sage: { light: '#d4dece', DEFAULT: '#8a9a7b', dark: '#6b7d5c' },
+                    gold: { light: '#e5d9a0', DEFAULT: '#c9a84c', dark: '#a88b36' },
+                },
+                fontFamily: {
+                    display: ['"Cormorant Garamond"', 'serif'],
+                    body: ['"Nunito Sans"', 'sans-serif'],
+                },
+            }
+        }
+    }
+    </script>
     <style>
         [x-cloak] { display: none !important; }
+
+        body {
+            font-family: 'Nunito Sans', sans-serif;
+            position: relative;
+        }
+
+        /* Organic background texture */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 80% 60% at 15% 85%, rgba(138,154,123,0.12) 0%, transparent 60%),
+                radial-gradient(ellipse 60% 50% at 90% 15%, rgba(201,168,76,0.08) 0%, transparent 50%),
+                radial-gradient(ellipse 50% 40% at 50% 50%, rgba(181,103,78,0.03) 0%, transparent 60%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Grain overlay */
+        body::after {
+            content: '';
+            position: fixed;
+            inset: 0;
+            opacity: 0.2;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.4'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        body > * { position: relative; z-index: 1; }
+
+        h1, h2, h3 { font-family: 'Cormorant Garamond', serif; }
+
+        /* Card styling */
+        .card {
+            background: var(--card-bg, #faf7f2);
+            border: 1px solid rgba(44, 36, 32, 0.08);
+            border-radius: 0.75rem;
+            box-shadow: 0 1px 3px rgba(44,36,32,0.04), 0 4px 16px rgba(44,36,32,0.04);
+        }
+
+        /* Button base */
+        .btn-primary {
+            background: #b5674e;
+            color: #faf7f2;
+            transition: background 0.25s, box-shadow 0.25s, transform 0.15s;
+        }
+        .btn-primary:hover {
+            background: #964f39;
+            box-shadow: 0 4px 14px rgba(150,79,57,0.2);
+        }
+        .btn-primary:active { transform: scale(0.985); }
+
+        .btn-secondary {
+            border: 1.5px solid rgba(44,36,32,0.12);
+            color: #5c4f47;
+            transition: background 0.2s, border-color 0.2s;
+        }
+        .btn-secondary:hover {
+            background: #f5f0e8;
+            border-color: rgba(44,36,32,0.2);
+        }
+
+        /* Input styling */
+        input[type="text"], input[type="file"], select {
+            background: #f5f0e8 !important;
+            border: 1.5px solid rgba(44,36,32,0.12) !important;
+            transition: border-color 0.25s, box-shadow 0.25s;
+        }
+        input[type="text"]:focus, select:focus {
+            border-color: #b5674e !important;
+            box-shadow: 0 0 0 3px rgba(181,103,78,0.12) !important;
+            outline: none !important;
+        }
+
+        /* Table styling */
+        thead { background: #f5f0e8; }
+        th { font-family: 'Nunito Sans', sans-serif !important; }
+
+        /* Nav link glow */
+        .nav-link {
+            position: relative;
+            transition: color 0.2s;
+        }
+        .nav-link::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            width: 0;
+            height: 1.5px;
+            background: linear-gradient(90deg, #b5674e, #c9a84c);
+            transition: width 0.3s;
+        }
+        .nav-link:hover::after { width: 100%; }
+
+        /* Animate page content in */
+        main { animation: fadeUp 0.5s cubic-bezier(0.22,1,0.36,1) both; }
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Flash message styling */
+        .flash-error {
+            background: #fbeae8;
+            color: #8b3a2f;
+            border: 1px solid #e8c4be;
+        }
+        .flash-warning {
+            background: #fef6e0;
+            color: #8a6d2b;
+            border: 1px solid #e8d9a4;
+        }
+        .flash-success {
+            background: #edf5ea;
+            color: #3d6635;
+            border: 1px solid #c4dbbe;
+        }
     </style>
 </head>
-<body class="h-full bg-stone-50 text-stone-900">
-    <nav class="bg-stone-800 text-white shadow">
-        <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-            <a href="/" class="text-lg font-semibold tracking-tight">CfA Attendance Tracker</a>
-            <a href="/logout" class="text-sm text-stone-300 hover:text-white transition">Log out</a>
+<body class="h-full bg-parchment text-ink">
+    <nav class="bg-ink-dark shadow-lg">
+        <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+            <a href="/" class="group flex items-center gap-3">
+                <div class="w-8 h-0.5 bg-gradient-to-r from-terra to-gold rounded-full"></div>
+                <span class="font-display text-xl font-semibold text-parchment-light tracking-wide">CfA Attendance</span>
+            </a>
+            <a href="/logout" class="nav-link text-sm text-parchment-dark hover:text-parchment-light font-body">Log out</a>
         </div>
     </nav>
 
-    <main class="max-w-6xl mx-auto px-4 py-6">
+    <main class="max-w-6xl mx-auto px-4 py-8">
         {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
-        <div class="mb-4 space-y-2">
+        <div class="mb-6 space-y-2">
             {% for category, message in messages %}
             <div class="px-4 py-3 rounded-lg text-sm
-                {% if category == 'error' %}bg-red-100 text-red-800 border border-red-200
-                {% elif category == 'warning' %}bg-amber-100 text-amber-800 border border-amber-200
-                {% else %}bg-emerald-100 text-emerald-800 border border-emerald-200{% endif %}">
+                {% if category == 'error' %}flash-error
+                {% elif category == 'warning' %}flash-warning
+                {% else %}flash-success{% endif %}">
                 {{ message }}
             </div>
             {% endfor %}

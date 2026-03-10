@@ -140,6 +140,21 @@ def add_students(course_id):
     return redirect(url_for("courses.edit_roster", course_id=course.id))
 
 
+@courses_bp.route("/courses/<int:course_id>/zoom-room", methods=["POST"])
+def set_zoom_room(course_id):
+    course = Course.query.get_or_404(course_id)
+    meeting_id = request.form.get("zoom_meeting_id", "").strip()
+    # Strip any non-numeric characters (users might paste with spaces or dashes)
+    meeting_id = "".join(c for c in meeting_id if c.isdigit())
+    course.zoom_meeting_id = meeting_id or None
+    db.session.commit()
+    if meeting_id:
+        flash(f"Zoom room linked (Meeting ID: {meeting_id}).", "success")
+    else:
+        flash("Zoom room unlinked.", "success")
+    return redirect(url_for("courses.course_detail", course_id=course_id))
+
+
 @courses_bp.route("/courses/<int:course_id>/delete", methods=["POST"])
 def delete_course(course_id):
     course = Course.query.get_or_404(course_id)

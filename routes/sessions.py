@@ -3,6 +3,7 @@ from extensions import db
 from models import Course, Student, Session, ZoomParticipant, Attendance, Alias, SkippedParticipant
 from zoom_parser import parse_zoom_csv
 from matching import consolidate_participants, match_participants_to_roster
+import zoom_api
 
 sessions_bp = Blueprint("sessions", __name__)
 
@@ -332,6 +333,144 @@ def review_matches(session_id):
         skipped=skipped,
         absent_students=absent_students,
     )
+
+
+@sessions_bp.route("/courses/<int:course_id>/zoom-sync")
+def zoom_sync(course_id):
+    """List recent Zoom meetings for this course's room, ready to import."""
+    course = Course.query.get_or_404(course_id)
+
+    if not zoom_api.is_configured():
+        flash("Zoom API credentials not configured. Set ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID, and ZOOM_CLIENT_SECRET.", "error")
+        return redirect(url_for("courses.course_detail", course_id=course_id))
+
+    if not course.zoom_meeting_id:
+        flash("No Zoom room linked to this course. Set the Zoom Meeting ID first.", "error")
+        return redirect(url_for("courses.course_detail", course_id=course_id))
+
+    try:
+        instances = zoom_api.list_past_meeting_instances(course.zoom_meeting_id)
+    except Exception as e:
+        flash(f"Error fetching Zoom meetings: {e}", "error")
+        return redirect(url_for("courses.course_detail", course_id=course_id))
+
+    # Enrich each instance with participant count and details
+    meetings = []
+    for inst in instances[:20]:  # Last 20 meetings max
+        try:
+            details = zoom_api.get_meeting_details(inst["uuid"])
+            details["start_time"] = inst["start_time"]
+            meetings.append(details)
+        except Exception:
+            # If we can't get details for an instance, include basic info
+            meetings.append({
+                "uuid": inst["uuid"],
+                "topic": "",
+                "start_time": inst["start_time"],
+                "duration_minutes": 0,
+                "participant_count": 0,
+            })
+
+    return render_template("zoom_sync.html", course=course, meetings=meetings)
+
+
+@sessions_bp.route("/courses/<int:course_id>/zoom-import", methods=["POST"])
+def zoom_import(course_id):
+    """Import a specific Zoom meeting instance as a session."""
+    course = Course.query.get_or_404(course_id)
+    meeting_uuid = request.form.get("meeting_uuid", "").strip()
+    label = request.form.get("label", "").strip()
+
+    if not meeting_uuid:
+        flash("No meeting selected.", "error")
+        return redirect(url_for("sessions.zoom_sync", course_id=course_id))
+
+    try:
+        meeting_data = zoom_api.get_meeting_participants(meeting_uuid)
+    except Exception as e:
+        flash(f"Error fetching participant data: {e}", "error")
+        return redirect(url_for("sessions.zoom_sync", course_id=course_id))
+
+    if not meeting_data["participants"]:
+        flash("No participants found for this meeting.", "error")
+        return redirect(url_for("sessions.zoom_sync", course_id=course_id))
+
+    if not label:
+        label = meeting_data.get("topic", "")
+
+    # Create session (same logic as CSV upload)
+    session = Session(
+        course_id=course.id,
+        label=label,
+        zoom_topic=meeting_data.get("topic", ""),
+        session_date=meeting_data.get("session_date"),
+        duration_minutes=meeting_data.get("duration_minutes", 0),
+    )
+    db.session.add(session)
+    db.session.flush()
+
+    # Store raw participants
+    for p in meeting_data["participants"]:
+        zp = ZoomParticipant(
+            session_id=session.id,
+            raw_name=p["raw_name"],
+            email=p["email"],
+            duration_minutes=p["duration_minutes"],
+        )
+        db.session.add(zp)
+
+    # Consolidate and match
+    consolidated = consolidate_participants(meeting_data["participants"])
+    students = Student.query.filter_by(course_id=course.id).all()
+    aliases = Alias.query.filter_by(course_id=course.id).all()
+    matches = match_participants_to_roster(consolidated, students, aliases, course.id)
+
+    # Save attendance records
+    needs_review = False
+    seen_students = {}
+    for m in matches:
+        sid = m["student_id"]
+        if m["status"] == "auto" and sid:
+            if sid in seen_students:
+                prev_m, prev_att = seen_students[sid]
+                if m["confidence"] > prev_m["confidence"]:
+                    prev_att.total_minutes = m["participant"]["total_minutes"]
+                    prev_att.match_confidence = m["confidence"]
+                    prev_att.match_method = m["method"]
+                    seen_students[sid] = (m, prev_att)
+            else:
+                att = Attendance(
+                    session_id=session.id,
+                    student_id=sid,
+                    total_minutes=m["participant"]["total_minutes"],
+                    match_confidence=m["confidence"],
+                    match_method=m["method"],
+                    confirmed=True,
+                )
+                db.session.add(att)
+                seen_students[sid] = (m, att)
+        elif m["status"] in ("review", "unmatched"):
+            needs_review = True
+            if sid and sid not in seen_students:
+                att = Attendance(
+                    session_id=session.id,
+                    student_id=sid,
+                    total_minutes=m["participant"]["total_minutes"],
+                    match_confidence=m["confidence"],
+                    match_method=m["method"],
+                    confirmed=False,
+                )
+                db.session.add(att)
+                seen_students[sid] = (m, att)
+
+    db.session.commit()
+
+    if needs_review:
+        flash(f"Imported {len(meeting_data['participants'])} participants from Zoom. Some matches need review.", "warning")
+        return redirect(url_for("sessions.review_matches", session_id=session.id))
+    else:
+        flash(f"Imported {len(meeting_data['participants'])} participants from Zoom. All matched!", "success")
+        return redirect(url_for("courses.course_detail", course_id=course.id))
 
 
 @sessions_bp.route("/sessions/<int:session_id>/delete", methods=["POST"])

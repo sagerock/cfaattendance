@@ -5,6 +5,7 @@ from extensions import db
 class Course(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.Text, nullable=False)
+    zoom_meeting_id = db.Column(db.Text)  # Zoom room meeting ID for API sync
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     students = db.relationship("Student", backref="course", cascade="all, delete-orphan")
     sessions = db.relationship("Session", backref="course", cascade="all, delete-orphan")

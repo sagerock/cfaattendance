@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Sync from Zoom — {{ course.name }}{% endblock %}
+{% block content %}
+<div class="mb-8">
+    <a href="/courses/{{ course.id }}" class="text-sm text-terra hover:text-terra-dark font-body transition">&larr; {{ course.name }}</a>
+    <h1 class="text-3xl font-display font-semibold mt-1">Sync from Zoom</h1>
+    <p class="text-sm text-ink-light font-body mt-1">Room ID: {{ course.zoom_meeting_id }} — showing up to 20 recent meetings</p>
+</div>
+
+{% if meetings %}
+<div class="space-y-3">
+    {% for m in meetings %}
+    <div class="card px-6 py-5 flex items-center justify-between">
+        <div class="font-body">
+            <div class="font-semibold text-ink">
+                {% if m.topic %}{{ m.topic }}{% else %}Meeting{% endif %}
+            </div>
+            <div class="text-sm text-ink-light mt-1">
+                {% if m.start_time %}
+                {{ m.start_time.strftime('%B %d, %Y at %I:%M %p') }}
+                {% else %}
+                Unknown date
+                {% endif %}
+                {% if m.duration_minutes %}
+                · {{ m.duration_minutes }} min
+                {% endif %}
+                {% if m.participant_count %}
+                · {{ m.participant_count }} participant{{ 's' if m.participant_count != 1 else '' }}
+                {% endif %}
+            </div>
+        </div>
+        <form method="POST" action="/courses/{{ course.id }}/zoom-import" class="flex gap-2 items-end">
+            <input type="hidden" name="meeting_uuid" value="{{ m.uuid }}">
+            <div>
+                <input type="text" name="label" placeholder="Label (optional)"
+                       class="text-sm rounded-lg px-2 py-1.5 font-body w-40">
+            </div>
+            <button type="submit" class="btn-primary text-sm px-4 py-1.5 rounded-lg font-body font-semibold whitespace-nowrap">
+                Import
+            </button>
+        </form>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="card px-6 py-12 text-center">
+    <p class="text-ink-light font-body">No past meetings found for this Zoom room.</p>
+    <p class="text-xs text-ink-light font-body mt-2">Note: Zoom retains meeting reports for the last 12 months.</p>
+</div>
+{% endif %}
+{% endblock %}

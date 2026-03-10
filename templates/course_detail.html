@@ -1,103 +1,148 @@
 {% extends "base.html" %}
 {% block title %}{{ course.name }} — CfA Attendance{% endblock %}
 {% block content %}
-<div class="mb-6">
-    <a href="/" class="text-sm text-stone-500 hover:text-stone-700">&larr; All Courses</a>
-    <h1 class="text-2xl font-bold mt-1">{{ course.name }}</h1>
+<div class="mb-8">
+    <a href="/" class="text-sm text-terra hover:text-terra-dark font-body transition">&larr; All Courses</a>
+    <h1 class="text-3xl font-display font-semibold mt-1">{{ course.name }}</h1>
 </div>
 
 <div class="grid md:grid-cols-2 gap-6">
     <!-- Roster Section -->
-    <div class="bg-white border border-stone-200 rounded-lg p-5">
+    <div class="card p-6">
         <div class="flex items-center justify-between mb-4">
-            <h2 class="text-lg font-semibold">Roster ({{ course.students|length }})</h2>
+            <h2 class="font-display text-xl font-semibold">Roster ({{ course.students|length }})</h2>
             <div class="flex gap-2">
                 <a href="/courses/{{ course.id }}/roster/edit"
-                   class="text-sm px-3 py-1.5 border border-stone-300 rounded-lg hover:bg-stone-50 transition">
+                   class="btn-secondary text-sm px-3 py-1.5 rounded-lg font-body">
                     Edit
                 </a>
                 <a href="/courses/{{ course.id }}/roster"
-                   class="text-sm px-3 py-1.5 bg-stone-800 text-white rounded-lg hover:bg-stone-700 transition">
+                   class="btn-primary text-sm px-3 py-1.5 rounded-lg font-body">
                     Upload Roster
                 </a>
             </div>
         </div>
         {% if course.students %}
-        <ul class="divide-y divide-stone-100 max-h-80 overflow-y-auto">
+        <ul class="divide-y divide-parchment-dark/30 max-h-80 overflow-y-auto">
             {% for student in course.students|sort(attribute='name') %}
-            <li class="py-2 text-sm">
-                <span class="font-medium">{{ student.name }}</span>
+            <li class="py-2.5 text-sm font-body">
+                <span class="font-semibold text-ink">{{ student.name }}</span>
                 {% if student.email %}
-                <span class="text-stone-400 ml-2">{{ student.email }}</span>
+                <span class="text-ink-light ml-2">{{ student.email }}</span>
                 {% endif %}
             </li>
             {% endfor %}
         </ul>
         {% else %}
-        <p class="text-stone-500 text-sm">No students yet. Upload a roster CSV.</p>
+        <p class="text-ink-light text-sm font-body">No students yet. Upload a roster CSV.</p>
         {% endif %}
     </div>
 
     <!-- Sessions Section -->
-    <div class="bg-white border border-stone-200 rounded-lg p-5">
+    <div class="card p-6">
         <div class="flex items-center justify-between mb-4">
-            <h2 class="text-lg font-semibold">Sessions ({{ course.sessions|length }})</h2>
+            <h2 class="font-display text-xl font-semibold">Sessions ({{ course.sessions|length }})</h2>
         </div>
 
-        <form method="POST" action="/courses/{{ course.id }}/sessions" enctype="multipart/form-data" class="mb-4">
-            <div class="flex gap-2 items-end">
-                <div class="flex-1">
-                    <label class="block text-xs text-stone-500 mb-1">Zoom CSV</label>
-                    <input type="file" name="zoom_file" accept=".csv" required
-                           class="w-full text-sm border border-stone-300 rounded-lg px-2 py-1.5 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-sm file:bg-stone-100">
-                </div>
+        <!-- Zoom Sync -->
+        <div class="mb-5 p-4 rounded-lg font-body" style="background: rgba(138,154,123,0.08); border: 1.5px solid rgba(138,154,123,0.2);">
+            {% if course.zoom_meeting_id %}
+            <div class="flex items-center justify-between">
                 <div>
-                    <label class="block text-xs text-stone-500 mb-1">Label (optional)</label>
-                    <input type="text" name="label" placeholder="e.g. Week 1"
-                           class="w-full text-sm border border-stone-300 rounded-lg px-2 py-1.5">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-sage-dark">Zoom Room Linked</span>
+                    <span class="text-xs text-ink-light ml-2">ID: {{ course.zoom_meeting_id }}</span>
                 </div>
-                <button type="submit" class="px-3 py-1.5 bg-stone-800 text-white text-sm rounded-lg hover:bg-stone-700 transition whitespace-nowrap">
-                    Upload
-                </button>
+                <div class="flex gap-2">
+                    <a href="/courses/{{ course.id }}/zoom-sync"
+                       class="text-sm px-3 py-1.5 bg-sage text-white rounded-lg hover:bg-sage-dark transition font-semibold">
+                        Sync from Zoom
+                    </a>
+                    <form method="POST" action="/courses/{{ course.id }}/zoom-room" class="inline">
+                        <input type="hidden" name="zoom_meeting_id" value="">
+                        <button type="submit" class="text-xs px-2 py-1.5 text-ink-light hover:bg-parchment rounded-lg transition">
+                            Unlink
+                        </button>
+                    </form>
+                </div>
             </div>
-        </form>
+            {% else %}
+            <form method="POST" action="/courses/{{ course.id }}/zoom-room" class="flex gap-2 items-end">
+                <div class="flex-1">
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-sage-dark mb-1">Link Zoom Room</label>
+                    <input type="text" name="zoom_meeting_id" placeholder="Zoom Meeting ID (e.g. 1234567890)"
+                           class="w-full text-sm rounded-lg px-2 py-1.5">
+                </div>
+                <button type="submit" class="text-sm px-3 py-1.5 bg-sage text-white rounded-lg hover:bg-sage-dark transition font-semibold whitespace-nowrap">
+                    Link Room
+                </button>
+            </form>
+            {% endif %}
+        </div>
+
+        <!-- CSV Upload (collapsible when Zoom is linked) -->
+        {% if course.zoom_meeting_id %}
+        <details class="mb-5">
+            <summary class="text-xs text-ink-light cursor-pointer hover:text-ink transition font-body mb-2">
+                Or upload CSV manually...
+            </summary>
+        {% endif %}
+            <form method="POST" action="/courses/{{ course.id }}/sessions" enctype="multipart/form-data" class="{% if not course.zoom_meeting_id %}mb-5{% endif %}">
+                <div class="flex gap-2 items-end">
+                    <div class="flex-1">
+                        <label class="block text-xs text-ink-light mb-1 font-body font-semibold uppercase tracking-wider">Zoom CSV</label>
+                        <input type="file" name="zoom_file" accept=".csv" required
+                               class="w-full text-sm rounded-lg px-2 py-1.5 font-body file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-sm file:bg-parchment-dark file:text-ink-light file:font-semibold">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-ink-light mb-1 font-body font-semibold uppercase tracking-wider">Label</label>
+                        <input type="text" name="label" placeholder="e.g. Week 1"
+                               class="w-full text-sm rounded-lg px-2 py-1.5 font-body">
+                    </div>
+                    <button type="submit" class="btn-primary px-3 py-1.5 text-sm rounded-lg font-body whitespace-nowrap font-semibold">
+                        Upload
+                    </button>
+                </div>
+            </form>
+        {% if course.zoom_meeting_id %}
+        </details>
+        {% endif %}
 
         {% if course.sessions %}
-        <ul class="divide-y divide-stone-100 max-h-64 overflow-y-auto">
+        <ul class="divide-y divide-parchment-dark/30 max-h-64 overflow-y-auto">
             {% for session in course.sessions|sort(attribute='session_date', reverse=True) %}
-            <li class="py-2 flex items-center justify-between">
+            <li class="py-3 flex items-center justify-between">
                 <div>
-                    <span class="text-sm font-medium">{{ session.label or session.zoom_topic }}</span>
+                    <span class="text-sm font-semibold font-body text-ink">{{ session.label or session.zoom_topic }}</span>
                     {% if session.session_date %}
-                    <span class="text-xs text-stone-400 ml-2">{{ session.session_date.strftime('%b %d, %Y') }}</span>
+                    <span class="text-xs text-ink-light ml-2">{{ session.session_date.strftime('%b %d, %Y') }}</span>
                     {% endif %}
                 </div>
                 <div class="flex gap-2">
                     <a href="/sessions/{{ session.id }}/report"
-                       class="text-xs px-2 py-1 text-stone-600 hover:bg-stone-100 rounded transition">
+                       class="text-xs px-2 py-1 text-ink-light hover:bg-parchment rounded transition font-body">
                         Report
                     </a>
                     {% set unconfirmed = session.attendances|selectattr('confirmed', 'false')|list %}
                     {% set skipped_count = session.skipped|length %}
                     {% if unconfirmed %}
                     <a href="/sessions/{{ session.id }}/review"
-                       class="text-xs px-2 py-1 bg-amber-100 text-amber-700 rounded hover:bg-amber-200 transition">
+                       class="text-xs px-2 py-1 bg-gold/20 text-gold-dark rounded hover:bg-gold/30 transition font-body font-semibold">
                         Review ({{ unconfirmed|length }} pending)
                     </a>
                     {% elif skipped_count %}
                     <a href="/sessions/{{ session.id }}/review"
-                       class="text-xs px-2 py-1 bg-stone-100 text-stone-600 rounded hover:bg-stone-200 transition">
+                       class="text-xs px-2 py-1 bg-parchment text-ink-light rounded hover:bg-parchment-dark transition font-body">
                         Re-review ({{ skipped_count }} skipped)
                     </a>
                     {% else %}
                     <a href="/sessions/{{ session.id }}/review"
-                       class="text-xs px-2 py-1 text-stone-500 hover:bg-stone-100 rounded transition">
+                       class="text-xs px-2 py-1 text-ink-light hover:bg-parchment rounded transition font-body">
                         Re-review
                     </a>
                     {% endif %}
                     <form method="POST" action="/sessions/{{ session.id }}/delete" class="inline"
                           onsubmit="return confirm('Delete this session?')">
-                        <button type="submit" class="text-xs px-2 py-1 text-red-600 hover:bg-red-50 rounded transition">
+                        <button type="submit" class="text-xs px-2 py-1 text-red-700 hover:bg-red-50 rounded transition font-body">
                             Delete
                         </button>
                     </form>
@@ -106,26 +151,26 @@
             {% endfor %}
         </ul>
         {% else %}
-        <p class="text-stone-500 text-sm">No sessions yet. Upload a Zoom CSV above.</p>
+        <p class="text-ink-light text-sm font-body">No sessions yet. {% if course.zoom_meeting_id %}Sync from Zoom or upload a CSV above.{% else %}Link a Zoom room or upload a CSV above.{% endif %}</p>
         {% endif %}
     </div>
 </div>
 
 <!-- Quick Actions -->
-<div class="mt-6 flex gap-3">
+<div class="mt-8 flex gap-3">
     {% if course.sessions %}
     <a href="/courses/{{ course.id }}/attendance"
-       class="px-4 py-2 bg-stone-800 text-white rounded-lg hover:bg-stone-700 transition">
+       class="btn-primary px-5 py-2.5 rounded-lg font-body text-sm font-semibold">
         View Attendance Dashboard
     </a>
     <a href="/courses/{{ course.id }}/attendance/export"
-       class="px-4 py-2 border border-stone-300 rounded-lg hover:bg-stone-50 transition">
+       class="btn-secondary px-5 py-2.5 rounded-lg font-body text-sm">
         Export CSV
     </a>
     {% endif %}
     <form method="POST" action="/courses/{{ course.id }}/delete" class="ml-auto"
           onsubmit="return confirm('Delete this course and all its data?')">
-        <button type="submit" class="px-4 py-2 text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition">
+        <button type="submit" class="px-4 py-2.5 text-red-700 border border-red-200 rounded-lg hover:bg-red-50 transition font-body text-sm">
             Delete Course
         </button>
     </form>

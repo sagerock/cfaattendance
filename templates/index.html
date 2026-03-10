@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Courses — CfA Attendance{% endblock %}
 {% block content %}
-<div class="flex items-center justify-between mb-6">
-    <h1 class="text-2xl font-bold">Courses</h1>
+<div class="flex items-center justify-between mb-8">
+    <h1 class="text-3xl font-display font-semibold">Courses</h1>
 </div>
 
-<form method="POST" action="/courses" class="mb-8 flex gap-3">
+<form method="POST" action="/courses" class="mb-10 flex gap-3">
     <input type="text" name="name" placeholder="New course name..." required
-           class="flex-1 px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-stone-500">
-    <button type="submit" class="px-4 py-2 bg-stone-800 text-white rounded-lg hover:bg-stone-700 transition">
+           class="flex-1 px-4 py-2.5 rounded-lg font-body text-sm">
+    <button type="submit" class="btn-primary px-5 py-2.5 rounded-lg font-body text-sm font-semibold">
         Create Course
     </button>
 </form>
@@ -16,20 +16,20 @@
 {% if courses %}
 <div class="space-y-3">
     {% for course in courses %}
-    <a href="/courses/{{ course.id }}" class="block bg-white border border-stone-200 rounded-lg px-5 py-4 hover:border-stone-400 transition">
+    <a href="/courses/{{ course.id }}" class="card block px-6 py-5 hover:shadow-md transition-shadow group">
         <div class="flex items-center justify-between">
             <div>
-                <h2 class="font-semibold text-lg">{{ course.name }}</h2>
-                <p class="text-sm text-stone-500 mt-1">
+                <h2 class="font-display text-xl font-semibold text-ink">{{ course.name }}</h2>
+                <p class="text-sm text-ink-light mt-1 font-body">
                     {{ course.students|length }} students · {{ course.sessions|length }} sessions
                 </p>
             </div>
-            <span class="text-stone-400">&rarr;</span>
+            <span class="text-terra opacity-0 group-hover:opacity-100 transition-opacity text-lg">&rarr;</span>
         </div>
     </a>
     {% endfor %}
 </div>
 {% else %}
-<p class="text-stone-500 text-center py-12">No courses yet. Create one above to get started.</p>
+<p class="text-ink-light text-center py-16 font-body">No courses yet. Create one above to get started.</p>
 {% endif %}
 {% endblock %}
