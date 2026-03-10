@@ -60,6 +60,14 @@ def create_app():
 
         db.create_all()
 
+        # Add new columns to existing tables (db.create_all doesn't alter)
+        from sqlalchemy import inspect, text
+        inspector = inspect(db.engine)
+        course_cols = [c["name"] for c in inspector.get_columns("course")]
+        if "zoom_meeting_id" not in course_cols:
+            db.session.execute(text("ALTER TABLE course ADD COLUMN zoom_meeting_id TEXT"))
+            db.session.commit()
+
     return app
 
 
