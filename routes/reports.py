@@ -1,5 +1,6 @@
 import csv
 import io
+from datetime import date
 from flask import Blueprint, render_template, Response
 from models import Course, Student, Session, Attendance, SkippedParticipant
 
@@ -140,5 +141,6 @@ def export_attendance(course_id):
         writer.writerow(row)
 
     response = Response(output.getvalue(), mimetype="text/csv")
-    response.headers["Content-Disposition"] = f'attachment; filename="{course.name} Attendance.csv"'
+    today = date.today().strftime("%B %d, %Y")
+    response.headers["Content-Disposition"] = f'attachment; filename="{course.name} Attendance - {today}.csv"'
     return response
