@@ -220,6 +220,7 @@ def get_meeting_recordings(meeting_id):
         size_bytes = f.get("file_size", 0)
         recordings.append({
             "file_type": file_type,
+            "file_extension": f.get("file_extension", "").lower(),
             "recording_type": f.get("recording_type", ""),
             "file_size_mb": round(size_bytes / (1024 * 1024), 1) if size_bytes else 0,
             "download_url": f.get("download_url", ""),

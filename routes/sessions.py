@@ -1,4 +1,6 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
+from datetime import datetime
+import requests
+from flask import Blueprint, Response, render_template, request, redirect, url_for, flash, jsonify, stream_with_context
 from extensions import db
 from models import Course, Student, Session, ZoomParticipant, Attendance, Alias, SkippedParticipant
 from zoom_parser import parse_zoom_csv
@@ -395,13 +397,48 @@ def zoom_meeting_details(meeting_uuid):
 
 @sessions_bp.route("/zoom-recording-download")
 def zoom_recording_download():
-    """Redirect to an authenticated Zoom recording download URL."""
+    """Stream a Zoom recording through Flask with a custom filename."""
     download_url = request.args.get("url", "")
     if not download_url or not zoom_api.is_configured():
         flash("Invalid recording download request.", "error")
         return redirect(url_for("courses.index"))
+
+    topic = request.args.get("topic", "").strip()
+    date_str = request.args.get("date", "").strip()
+    file_type = request.args.get("file_type", "").strip().upper()
+    ext = request.args.get("ext", "").strip().lower()
+
+    extension_fallback = {"MP4": "mp4", "M4A": "m4a", "CHAT": "txt", "TRANSCRIPT": "vtt", "CSV": "csv", "TIMELINE": "json"}
+    if not ext:
+        ext = extension_fallback.get(file_type, "bin")
+
+    try:
+        date_label = datetime.fromisoformat(date_str).strftime("%B %d, %Y") if date_str else ""
+    except ValueError:
+        date_label = ""
+
+    name = topic or "Zoom Recording"
+    type_label = f" {file_type}" if file_type else ""
+    filename = f"{name}{type_label} - {date_label}.{ext}" if date_label else f"{name}{type_label}.{ext}"
+    safe_filename = filename.replace('"', "'")
+
     authenticated_url = zoom_api.get_recording_download_url(download_url)
-    return redirect(authenticated_url)
+    upstream = requests.get(authenticated_url, stream=True, timeout=30)
+    if not upstream.ok:
+        flash("Zoom rejected the download request.", "error")
+        return redirect(url_for("courses.index"))
+
+    headers = {
+        "Content-Disposition": f'attachment; filename="{safe_filename}"',
+    }
+    if upstream.headers.get("Content-Length"):
+        headers["Content-Length"] = upstream.headers["Content-Length"]
+
+    return Response(
+        stream_with_context(upstream.iter_content(chunk_size=64 * 1024)),
+        mimetype=upstream.headers.get("Content-Type", "application/octet-stream"),
+        headers=headers,
+    )
 
 
 @sessions_bp.route("/courses/<int:course_id>/zoom-import", methods=["POST"])

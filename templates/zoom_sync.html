@@ -55,10 +55,14 @@ const recStyles = {
 
 const csvIcon = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>';
 
-function renderRecordings(container, recordings, attendanceUrl) {
+function renderRecordings(container, recordings, attendanceUrl, topic, meetingDate) {
     recordings.forEach(rec => {
         const style = recStyles[rec.file_type] || recStyles._default;
-        const url = REC_DOWNLOAD_BASE.replace('__URL__', encodeURIComponent(rec.download_url));
+        const extras = '&topic=' + encodeURIComponent(topic || '')
+            + '&date=' + encodeURIComponent(meetingDate || '')
+            + '&file_type=' + encodeURIComponent(rec.file_type || '')
+            + '&ext=' + encodeURIComponent(rec.file_extension || '');
+        const url = REC_DOWNLOAD_BASE.replace('__URL__', encodeURIComponent(rec.download_url)) + extras;
         const size = rec.file_size_mb ? ` (${rec.file_size_mb} MB)` : '';
         container.insertAdjacentHTML('beforeend',
             `<a href="${url}" class="inline-flex items-center gap-1.5 text-xs font-body font-medium px-3 py-1.5 rounded-lg ${style.bg} transition" target="_blank" rel="noopener">${style.icon} ${rec.file_type}${size}</a>`
@@ -101,7 +105,7 @@ function loadNext() {
                 const attendanceUrl = REC_ATTENDANCE_URL
                     + '?topic=' + encodeURIComponent(topic)
                     + '&date=' + encodeURIComponent(meetingDate);
-                renderRecordings(card.querySelector('.recordings-list'), data.recordings || [], attendanceUrl);
+                renderRecordings(card.querySelector('.recordings-list'), data.recordings || [], attendanceUrl, topic, meetingDate);
             })
             .catch(() => {
                 card.querySelector('.meeting-details').textContent = '';
