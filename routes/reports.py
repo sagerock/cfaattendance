@@ -1,7 +1,7 @@
 import csv
 import io
-from datetime import date
-from flask import Blueprint, render_template, Response
+from datetime import date, datetime
+from flask import Blueprint, render_template, Response, request
 from models import Course, Student, Session, Attendance, SkippedParticipant
 
 reports_bp = Blueprint("reports", __name__)
@@ -140,7 +140,14 @@ def export_attendance(course_id):
         row.extend([present, total_sessions, f"{pct:.0f}%", "Yes" if pct >= 80 else "No"])
         writer.writerow(row)
 
+    topic = request.args.get("topic", "").strip()
+    date_str = request.args.get("date", "").strip()
+    name = topic if topic else course.name
+    try:
+        date_label = datetime.fromisoformat(date_str).strftime("%B %d, %Y") if date_str else date.today().strftime("%B %d, %Y")
+    except ValueError:
+        date_label = date.today().strftime("%B %d, %Y")
+
     response = Response(output.getvalue(), mimetype="text/csv")
-    today = date.today().strftime("%B %d, %Y")
-    response.headers["Content-Disposition"] = f'attachment; filename="{course.name} Attendance - {today}.csv"'
+    response.headers["Content-Disposition"] = f'attachment; filename="{name} Attendance - {date_label}.csv"'
     return response

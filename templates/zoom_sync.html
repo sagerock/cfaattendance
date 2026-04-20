@@ -10,7 +10,7 @@
 {% if meetings %}
 <div class="space-y-3" id="meetings-list">
     {% for m in meetings %}
-    <div class="card px-6 py-5" data-uuid="{{ m.uuid }}" data-index="{{ loop.index0 }}">
+    <div class="card px-6 py-5" data-uuid="{{ m.uuid }}" data-index="{{ loop.index0 }}" data-date="{{ m.start_time_iso }}">
         <div class="flex items-center justify-between">
             <div class="font-body">
                 <div class="font-semibold text-ink">
@@ -55,7 +55,7 @@ const recStyles = {
 
 const csvIcon = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>';
 
-function renderRecordings(container, recordings) {
+function renderRecordings(container, recordings, attendanceUrl) {
     recordings.forEach(rec => {
         const style = recStyles[rec.file_type] || recStyles._default;
         const url = REC_DOWNLOAD_BASE.replace('__URL__', encodeURIComponent(rec.download_url));
@@ -65,7 +65,7 @@ function renderRecordings(container, recordings) {
         );
     });
     container.insertAdjacentHTML('beforeend',
-        `<a href="${REC_ATTENDANCE_URL}" class="inline-flex items-center gap-1.5 text-xs font-body font-medium px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition">${csvIcon} Attendance CSV</a>`
+        `<a href="${attendanceUrl}" class="inline-flex items-center gap-1.5 text-xs font-body font-medium px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition">${csvIcon} Attendance CSV</a>`
     );
     container.closest('.meeting-recordings').classList.remove('hidden');
 }
@@ -96,7 +96,12 @@ function loadNext() {
                 detailsEl.textContent = parts.length ? '· ' + parts.join(' · ') : '';
 
                 // Render recordings
-                renderRecordings(card.querySelector('.recordings-list'), data.recordings || []);
+                const topic = data.topic || '';
+                const meetingDate = card.dataset.date || '';
+                const attendanceUrl = REC_ATTENDANCE_URL
+                    + '?topic=' + encodeURIComponent(topic)
+                    + '&date=' + encodeURIComponent(meetingDate);
+                renderRecordings(card.querySelector('.recordings-list'), data.recordings || [], attendanceUrl);
             })
             .catch(() => {
                 card.querySelector('.meeting-details').textContent = '';
