@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 import requests
 from flask import Blueprint, Response, render_template, request, redirect, url_for, flash, jsonify, stream_with_context
@@ -367,6 +368,47 @@ def zoom_sync(course_id):
         })
 
     return render_template("zoom_sync.html", course=course, meetings=meetings)
+
+
+@sessions_bp.route("/recordings")
+def all_recordings():
+    """List past meetings across every Zoom room, newest first."""
+    if not zoom_api.is_configured():
+        flash("Zoom API credentials not configured.", "error")
+        return redirect(url_for("courses.index"))
+
+    courses_by_room = {
+        c.zoom_meeting_id: c
+        for c in Course.query.filter(Course.zoom_meeting_id.isnot(None)).all()
+    }
+
+    def fetch(room):
+        try:
+            return room, zoom_api.list_past_meeting_instances(room["id"])
+        except Exception:
+            return room, []
+
+    with ThreadPoolExecutor(max_workers=5) as ex:
+        results = list(ex.map(fetch, zoom_api.ZOOM_ROOMS))
+
+    meetings = []
+    for room, instances in results:
+        course = courses_by_room.get(room["id"])
+        for inst in instances:
+            start = inst["start_time"]
+            meetings.append({
+                "uuid": inst["uuid"],
+                "start_time": start,
+                "start_time_display": start.strftime("%B %d, %Y at %I:%M %p") if start else "Unknown date",
+                "start_time_iso": start.isoformat() if start else "",
+                "room_name": room["name"],
+                "course_id": course.id if course else None,
+                "course_name": course.name if course else None,
+            })
+
+    meetings.sort(key=lambda m: m["start_time"] or datetime.min, reverse=True)
+
+    return render_template("all_recordings.html", meetings=meetings)
 
 
 @sessions_bp.route("/zoom-meeting-details/<path:meeting_uuid>")
