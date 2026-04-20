@@ -81,10 +81,22 @@ function renderRecordings(container, recordings, attendanceUrl, topic, meetingDa
     }
 }
 
-const cards = document.querySelectorAll('#meetings-list [data-uuid]');
-let queue = Array.from(cards);
+const queue = [];
 let active = 0;
 const MAX_CONCURRENT = 5;
+
+const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+        if (entry.isIntersecting && !entry.target.dataset.loaded) {
+            entry.target.dataset.loaded = 'pending';
+            queue.push(entry.target);
+            observer.unobserve(entry.target);
+            loadNext();
+        }
+    });
+}, { rootMargin: '400px 0px' });
+
+document.querySelectorAll('#meetings-list [data-uuid]').forEach(card => observer.observe(card));
 
 function loadNext() {
     while (active < MAX_CONCURRENT && queue.length) {
@@ -125,8 +137,6 @@ function loadNext() {
             });
     }
 }
-
-loadNext();
 </script>
 
 {% else %}

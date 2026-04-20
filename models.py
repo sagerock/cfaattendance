@@ -77,3 +77,13 @@ class Alias(db.Model):
     alias_name = db.Column(db.Text, nullable=False)
     student = db.relationship("Student")
     __table_args__ = (db.UniqueConstraint("course_id", "alias_name"),)
+
+
+class ZoomMeetingCache(db.Model):
+    """Cached details + recordings for past Zoom meeting UUIDs.
+
+    Past meetings are immutable, so cache indefinitely to avoid repeat API calls.
+    """
+    meeting_uuid = db.Column(db.Text, primary_key=True)
+    data_json = db.Column(db.Text, nullable=False)
+    cached_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))

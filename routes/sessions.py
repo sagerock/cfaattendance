@@ -1,9 +1,10 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+import json
 import requests
 from flask import Blueprint, Response, render_template, request, redirect, url_for, flash, jsonify, stream_with_context
 from extensions import db
-from models import Course, Student, Session, ZoomParticipant, Attendance, Alias, SkippedParticipant
+from models import Course, Student, Session, ZoomParticipant, Attendance, Alias, SkippedParticipant, ZoomMeetingCache
 from zoom_parser import parse_zoom_csv
 from matching import consolidate_participants, match_participants_to_roster
 import zoom_api
@@ -413,7 +414,14 @@ def all_recordings():
 
 @sessions_bp.route("/zoom-meeting-details/<path:meeting_uuid>")
 def zoom_meeting_details(meeting_uuid):
-    """AJAX endpoint: return details + recordings for a single meeting instance."""
+    """AJAX endpoint: return details + recordings for a single meeting instance.
+
+    Cached indefinitely in ZoomMeetingCache since past meetings are immutable.
+    """
+    cached = db.session.get(ZoomMeetingCache, meeting_uuid)
+    if cached:
+        return jsonify(json.loads(cached.data_json))
+
     if not zoom_api.is_configured():
         return jsonify({"error": "not configured"}), 500
 
@@ -429,12 +437,22 @@ def zoom_meeting_details(meeting_uuid):
     except Exception:
         pass
 
-    return jsonify({
+    result = {
         "topic": details.get("topic", ""),
         "duration_minutes": details.get("duration_minutes", 0),
         "participant_count": details.get("participant_count", 0),
         "recordings": recordings,
-    })
+    }
+
+    # Only cache when we have real data — avoids caching a not-yet-processed meeting
+    if details and (result["duration_minutes"] or result["participant_count"]):
+        try:
+            db.session.add(ZoomMeetingCache(meeting_uuid=meeting_uuid, data_json=json.dumps(result)))
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+    return jsonify(result)
 
 
 PROXY_FILE_TYPES = {"CHAT", "TRANSCRIPT", "CSV", "TIMELINE"}
