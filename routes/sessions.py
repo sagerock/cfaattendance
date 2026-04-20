@@ -395,20 +395,29 @@ def zoom_meeting_details(meeting_uuid):
     })
 
 
+PROXY_FILE_TYPES = {"CHAT", "TRANSCRIPT", "CSV", "TIMELINE"}
+
+
 @sessions_bp.route("/zoom-recording-download")
 def zoom_recording_download():
-    """Stream a Zoom recording through Flask with a custom filename."""
+    """Download a Zoom recording. Small text files are streamed through Flask
+    with a custom filename; large media files redirect directly to Zoom."""
     download_url = request.args.get("url", "")
     if not download_url or not zoom_api.is_configured():
         flash("Invalid recording download request.", "error")
         return redirect(url_for("courses.index"))
 
+    file_type = request.args.get("file_type", "").strip().upper()
+    authenticated_url = zoom_api.get_recording_download_url(download_url)
+
+    if file_type not in PROXY_FILE_TYPES:
+        return redirect(authenticated_url)
+
     topic = request.args.get("topic", "").strip()
     date_str = request.args.get("date", "").strip()
-    file_type = request.args.get("file_type", "").strip().upper()
     ext = request.args.get("ext", "").strip().lower()
 
-    extension_fallback = {"MP4": "mp4", "M4A": "m4a", "CHAT": "txt", "TRANSCRIPT": "vtt", "CSV": "csv", "TIMELINE": "json"}
+    extension_fallback = {"CHAT": "txt", "TRANSCRIPT": "vtt", "CSV": "csv", "TIMELINE": "json"}
     if not ext:
         ext = extension_fallback.get(file_type, "bin")
 
@@ -418,19 +427,15 @@ def zoom_recording_download():
         date_label = ""
 
     name = topic or "Zoom Recording"
-    type_label = f" {file_type}" if file_type else ""
-    filename = f"{name}{type_label} - {date_label}.{ext}" if date_label else f"{name}{type_label}.{ext}"
+    filename = f"{name} {file_type} - {date_label}.{ext}" if date_label else f"{name} {file_type}.{ext}"
     safe_filename = filename.replace('"', "'")
 
-    authenticated_url = zoom_api.get_recording_download_url(download_url)
     upstream = requests.get(authenticated_url, stream=True, timeout=30)
     if not upstream.ok:
         flash("Zoom rejected the download request.", "error")
         return redirect(url_for("courses.index"))
 
-    headers = {
-        "Content-Disposition": f'attachment; filename="{safe_filename}"',
-    }
+    headers = {"Content-Disposition": f'attachment; filename="{safe_filename}"'}
     if upstream.headers.get("Content-Length"):
         headers["Content-Length"] = upstream.headers["Content-Length"]
 
