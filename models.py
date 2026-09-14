@@ -28,6 +28,7 @@ class Session(db.Model):
     zoom_topic = db.Column(db.Text)
     session_date = db.Column(db.Date)
     duration_minutes = db.Column(db.Integer)
+    meeting_uuid = db.Column(db.Text)  # Zoom meeting instance UUID (dedupe for auto-sync)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     participants = db.relationship(
         "ZoomParticipant", backref="session", cascade="all, delete-orphan"

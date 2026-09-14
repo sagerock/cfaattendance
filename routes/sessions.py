@@ -8,6 +8,9 @@ from models import Course, Student, Session, ZoomParticipant, Attendance, Alias,
 from zoom_parser import parse_zoom_csv
 from matching import consolidate_participants, match_participants_to_roster
 import zoom_api
+import hmac
+import os
+from autosync import import_meeting, run_autosync
 
 sessions_bp = Blueprint("sessions", __name__)
 
@@ -518,91 +521,44 @@ def zoom_import(course_id):
         return redirect(url_for("sessions.zoom_sync", course_id=course_id))
 
     try:
-        meeting_data = zoom_api.get_meeting_participants(meeting_uuid)
+        session, needs_review, info = import_meeting(course, meeting_uuid, label=label)
     except Exception as e:
+        db.session.rollback()
         flash(f"Error fetching participant data: {e}", "error")
         return redirect(url_for("sessions.zoom_sync", course_id=course_id))
 
-    if not meeting_data["participants"]:
+    if session is None:
+        if info["reason"] == "duplicate":
+            flash("That meeting is already a session of this course.", "warning")
+            return redirect(url_for("sessions.review_matches", session_id=info["session_id"]))
         flash("No participants found for this meeting.", "error")
         return redirect(url_for("sessions.zoom_sync", course_id=course_id))
 
-    if not label:
-        label = meeting_data.get("topic", "")
-
-    # Create session (same logic as CSV upload)
-    session = Session(
-        course_id=course.id,
-        label=label,
-        zoom_topic=meeting_data.get("topic", ""),
-        session_date=meeting_data.get("session_date"),
-        duration_minutes=meeting_data.get("duration_minutes", 0),
-    )
-    db.session.add(session)
-    db.session.flush()
-
-    # Store raw participants
-    for p in meeting_data["participants"]:
-        zp = ZoomParticipant(
-            session_id=session.id,
-            raw_name=p["raw_name"],
-            email=p["email"],
-            duration_minutes=p["duration_minutes"],
-        )
-        db.session.add(zp)
-
-    # Consolidate and match
-    consolidated = consolidate_participants(meeting_data["participants"])
-    students = Student.query.filter_by(course_id=course.id).all()
-    aliases = Alias.query.filter_by(course_id=course.id).all()
-    matches = match_participants_to_roster(consolidated, students, aliases, course.id)
-
-    # Save attendance records
-    needs_review = False
-    seen_students = {}
-    for m in matches:
-        sid = m["student_id"]
-        if m["status"] == "auto" and sid:
-            if sid in seen_students:
-                prev_m, prev_att = seen_students[sid]
-                if m["confidence"] > prev_m["confidence"]:
-                    prev_att.total_minutes = m["participant"]["total_minutes"]
-                    prev_att.match_confidence = m["confidence"]
-                    prev_att.match_method = m["method"]
-                    seen_students[sid] = (m, prev_att)
-            else:
-                att = Attendance(
-                    session_id=session.id,
-                    student_id=sid,
-                    total_minutes=m["participant"]["total_minutes"],
-                    match_confidence=m["confidence"],
-                    match_method=m["method"],
-                    confirmed=True,
-                )
-                db.session.add(att)
-                seen_students[sid] = (m, att)
-        elif m["status"] in ("review", "unmatched"):
-            needs_review = True
-            if sid and sid not in seen_students:
-                att = Attendance(
-                    session_id=session.id,
-                    student_id=sid,
-                    total_minutes=m["participant"]["total_minutes"],
-                    match_confidence=m["confidence"],
-                    match_method=m["method"],
-                    confirmed=False,
-                )
-                db.session.add(att)
-                seen_students[sid] = (m, att)
-
-    db.session.commit()
-
     if needs_review:
-        flash(f"Imported {len(meeting_data['participants'])} participants from Zoom. Some matches need review.", "warning")
+        flash(f"Imported {info['participants']} participants from Zoom. Some matches need review.", "warning")
         return redirect(url_for("sessions.review_matches", session_id=session.id))
-    else:
-        flash(f"Imported {len(meeting_data['participants'])} participants from Zoom. All matched!", "success")
-        return redirect(url_for("courses.course_detail", course_id=course.id))
+    flash(f"Imported {info['participants']} participants from Zoom. All matched!", "success")
+    return redirect(url_for("courses.course_detail", course_id=course.id))
+
+
+@sessions_bp.route("/cron/auto-sync", methods=["POST"])
+def cron_auto_sync():
+    """Nightly: import every recent Zoom meeting into the course(s) whose students were in it.
+
+    Not behind the login; authenticated by the X-Cron-Token header against CRON_TOKEN.
+    """
+    expected = os.environ.get("CRON_TOKEN", "")
+    given = request.headers.get("X-Cron-Token", "")
+    if not expected or not hmac.compare_digest(given, expected):
+        return jsonify({"error": "unauthorized"}), 401
+    if not zoom_api.is_configured():
+        return jsonify({"error": "zoom not configured"}), 500
+    try:
+        days = int(request.args.get("days", 7))
+    except ValueError:
+        days = 7
+    summary = run_autosync(days=days)
+    return jsonify(summary)
 
 
 @sessions_bp.route("/sessions/<int:session_id>/delete", methods=["POST"])

@@ -32,8 +32,8 @@ def create_app():
 
     @app.before_request
     def require_login():
-        if request.endpoint == "login" or request.endpoint == "static":
-            return
+        if request.endpoint in ("login", "static", "sessions.cron_auto_sync"):
+            return  # cron_auto_sync authenticates with its own token
         if not session.get("authenticated"):
             return redirect(url_for("login"))
 
@@ -66,6 +66,10 @@ def create_app():
         course_cols = [c["name"] for c in inspector.get_columns("course")]
         if "zoom_meeting_id" not in course_cols:
             db.session.execute(text("ALTER TABLE course ADD COLUMN zoom_meeting_id TEXT"))
+            db.session.commit()
+        session_cols = [c["name"] for c in inspector.get_columns("session")]
+        if "meeting_uuid" not in session_cols:
+            db.session.execute(text("ALTER TABLE session ADD COLUMN meeting_uuid TEXT"))
             db.session.commit()
 
     return app
