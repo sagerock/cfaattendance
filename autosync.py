@@ -46,6 +46,47 @@ def looks_like_this_course(consolidated, matches):
     return len(matched) >= needed, len(matched)
 
 
+def _fill_meeting_header(meeting_uuid, meeting_data):
+    """Zoom's participants report carries no topic/start time; get them from the meeting report."""
+    if meeting_data.get("session_date") and meeting_data.get("topic"):
+        return
+    try:
+        details = zoom_api.get_meeting_details(meeting_uuid)
+    except Exception as e:  # header is nice to have; the attendance still counts
+        log.warning("meeting details for %s failed: %s", meeting_uuid, e)
+        return
+    if not meeting_data.get("topic"):
+        meeting_data["topic"] = details.get("topic", "")
+    if not meeting_data.get("session_date") and details.get("start_time"):
+        meeting_data["start_time"] = details["start_time"]
+        meeting_data["session_date"] = details["start_time"].date()
+    if not meeting_data.get("duration_minutes"):
+        meeting_data["duration_minutes"] = details.get("duration_minutes", 0)
+
+
+def backfill_session_headers():
+    """Sessions imported with a meeting_uuid but no date/topic get them now. Returns count fixed."""
+    fixed = 0
+    for sess in Session.query.filter(Session.meeting_uuid.isnot(None), Session.session_date.is_(None)).all():
+        try:
+            d = zoom_api.get_meeting_details(sess.meeting_uuid)
+        except Exception as e:
+            log.warning("backfill %s failed: %s", sess.meeting_uuid, e)
+            continue
+        if d.get("start_time"):
+            sess.session_date = d["start_time"].date()
+        if not sess.zoom_topic:
+            sess.zoom_topic = d.get("topic", "")
+        if not sess.label:
+            sess.label = d.get("topic", "")
+        if not sess.duration_minutes:
+            sess.duration_minutes = d.get("duration_minutes", 0)
+        fixed += 1
+    if fixed:
+        db.session.commit()
+    return fixed
+
+
 def import_meeting(course, meeting_uuid, label="", meeting_data=None, require_fit=False):
     """Create a Session for `course` from one Zoom meeting instance.
 
@@ -54,6 +95,7 @@ def import_meeting(course, meeting_uuid, label="", meeting_data=None, require_fi
     """
     if meeting_data is None:
         meeting_data = zoom_api.get_meeting_participants(meeting_uuid)
+    _fill_meeting_header(meeting_uuid, meeting_data)
 
     participants = meeting_data.get("participants") or []
     if not participants:
@@ -142,7 +184,8 @@ def import_meeting(course, meeting_uuid, label="", meeting_data=None, require_fi
 def run_autosync(days=7):
     """Import every recent meeting that belongs to a course. Returns a JSON-able summary."""
     since = datetime.now(timezone.utc) - timedelta(days=days)
-    summary = {"days": days, "courses": [], "imported": 0, "needs_review": 0, "errors": 0}
+    summary = {"days": days, "courses": [], "imported": 0, "needs_review": 0, "errors": 0,
+               "headers_backfilled": backfill_session_headers()}
     courses = Course.query.filter(Course.zoom_meeting_id.isnot(None)).all()
     instances_by_room = {}
     meeting_cache = {}
