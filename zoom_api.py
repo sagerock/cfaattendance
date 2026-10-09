@@ -2,11 +2,59 @@
 
 import logging
 import os
+import threading
 import time
 import requests
 from datetime import datetime, date
 
 log = logging.getLogger(__name__)
+
+# Zoom puts the report endpoints we live on (/report/meetings/...) in its "Heavy" rate
+# limit category, counted per second and per day across the whole account. One autosync
+# walks every room and every meeting of the last 7 days, the All Recordings page fans out
+# over 9 rooms at once, and the nightly recording sweep runs too, so unpaced bursts do
+# get 429s (first seen 2026-10-09, when the Railway and desktop copies of the nightly
+# autosync ran two minutes apart and the second one lost two Kairos meetings to 429).
+ZOOM_MIN_REQUEST_INTERVAL = float(os.environ.get("ZOOM_MIN_REQUEST_INTERVAL", "0.25"))
+ZOOM_MAX_RETRIES = int(os.environ.get("ZOOM_MAX_RETRIES", "4"))
+ZOOM_MAX_RETRY_WAIT = float(os.environ.get("ZOOM_MAX_RETRY_WAIT", "30"))
+
+_rate_lock = threading.Lock()
+_last_request_at = 0.0
+
+
+class ZoomRateLimited(RuntimeError):
+    """Zoom answered 429 and was still answering 429 after every retry.
+
+    Deliberately not an HTTPError: list_past_meeting_instances() and
+    get_meeting_recordings() treat an HTTPError as "this endpoint does not apply, try
+    the next fallback", which would quietly turn a rate limit into "this room had no
+    meetings". A rate limit has to surface as an error so the nightly heartbeat fails
+    loudly instead of skipping a class.
+    """
+
+
+def _throttle():
+    """Space Zoom requests out so a burst cannot trip the per-second limit."""
+    global _last_request_at
+    with _rate_lock:
+        wait = ZOOM_MIN_REQUEST_INTERVAL - (time.monotonic() - _last_request_at)
+        if wait > 0:
+            time.sleep(wait)
+        _last_request_at = time.monotonic()
+
+
+def _retry_after_seconds(resp, attempt):
+    """How long to wait before retrying a 429.
+
+    Zoom sends Retry-After as seconds for the per-second/per-minute limits, and as an
+    HTTP date (tomorrow) when the daily limit is gone. A date means waiting is pointless,
+    so fall back to plain exponential backoff and let the retries run out.
+    """
+    raw = (resp.headers.get("Retry-After") or "").strip()
+    if raw.isdigit():
+        return min(float(raw), ZOOM_MAX_RETRY_WAIT)
+    return min(2.0 ** attempt, ZOOM_MAX_RETRY_WAIT)
 
 ZOOM_ACCOUNT_ID = os.environ.get("ZOOM_ACCOUNT_ID", "")
 ZOOM_CLIENT_ID = os.environ.get("ZOOM_CLIENT_ID", "")
@@ -47,16 +95,35 @@ def _get_access_token():
 
 
 def _api_get(path, params=None):
-    """Make an authenticated GET request to the Zoom API."""
-    token = _get_access_token()
-    resp = requests.get(
-        f"https://api.zoom.us/v2{path}",
-        headers={"Authorization": f"Bearer {token}"},
-        params=params or {},
-        timeout=30,
+    """Make an authenticated GET request to the Zoom API, retrying 429s with backoff."""
+    last_resp = None
+    for attempt in range(ZOOM_MAX_RETRIES + 1):
+        _throttle()
+        token = _get_access_token()
+        resp = requests.get(
+            f"https://api.zoom.us/v2{path}",
+            headers={"Authorization": f"Bearer {token}"},
+            params=params or {},
+            timeout=30,
+        )
+        if resp.status_code != 429:
+            resp.raise_for_status()
+            return resp.json()
+
+        last_resp = resp
+        if attempt == ZOOM_MAX_RETRIES:
+            break
+        delay = _retry_after_seconds(resp, attempt)
+        log.warning(
+            "Zoom 429 on %s (attempt %s/%s), waiting %.1fs",
+            path, attempt + 1, ZOOM_MAX_RETRIES, delay,
+        )
+        time.sleep(delay)
+
+    raise ZoomRateLimited(
+        f"429 Too Many Requests from Zoom for {path} after {ZOOM_MAX_RETRIES} retries "
+        f"(Retry-After: {last_resp.headers.get('Retry-After', 'none') if last_resp else 'none'})"
     )
-    resp.raise_for_status()
-    return resp.json()
 
 
 def is_configured():
