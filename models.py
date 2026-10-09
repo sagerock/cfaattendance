@@ -22,6 +22,11 @@ class Student(db.Model):
 
 
 class Session(db.Model):
+    # One session per Zoom meeting per course, so overlapping auto-sync runs can't double-import.
+    # NULL meeting_uuid (manual uploads) is exempt.
+    __table_args__ = (
+        db.Index("uq_session_course_meeting", "course_id", "meeting_uuid", unique=True),
+    )
     id = db.Column(db.Integer, primary_key=True)
     course_id = db.Column(db.Integer, db.ForeignKey("course.id"), nullable=False)
     label = db.Column(db.Text)

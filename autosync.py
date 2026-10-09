@@ -16,6 +16,8 @@ import logging
 import math
 from datetime import datetime, timedelta, timezone
 
+from sqlalchemy.exc import IntegrityError
+
 from extensions import db
 from models import Course, Student, Session, ZoomParticipant, Attendance, Alias
 from matching import consolidate_participants, match_participants_to_roster
@@ -131,7 +133,13 @@ def import_meeting(course, meeting_uuid, label="", meeting_data=None, require_fi
         meeting_uuid=meeting_uuid,
     )
     db.session.add(session)
-    db.session.flush()
+    try:
+        db.session.flush()
+    except IntegrityError:
+        # Another run imported this meeting between our duplicate check and now.
+        db.session.rollback()
+        dup = Session.query.filter_by(course_id=course.id, meeting_uuid=meeting_uuid).first()
+        return None, False, {"reason": "duplicate", "session_id": dup.id if dup else None}
 
     for p in participants:
         db.session.add(ZoomParticipant(
