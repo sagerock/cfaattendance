@@ -1,7 +1,15 @@
 flask==3.1.0
 flask-sqlalchemy==3.1.1
+# Pin the 2.0 series: SQLAlchemy 2.1 switched the default DBAPI for a plain
+# postgresql:// URL from psycopg2 to psycopg 3. flask-sqlalchemy only asks for
+# >=2.0.16, so the 2026-10-09 rebuild silently picked up 2.1.4 and the app could
+# not boot: ModuleNotFoundError: No module named 'psycopg'.
+sqlalchemy<2.1
 rapidfuzz==3.12.1
 gunicorn==23.0.0
 requests==2.32.5
 psycopg2-binary==2.9.11
+# Belt and braces: ship the psycopg 3 driver too, so whoever lifts the pin above
+# does not repeat the outage.
+psycopg[binary]==3.2.12
 openpyxl==3.1.5
