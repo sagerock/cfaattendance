@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "sh",
+      "args": [
+        "-c",
+        "if command -v client-chrome >/dev/null 2>&1; then exec client-chrome \"$1\" mcp; elif [ -x \"$HOME/.local/bin/client-chrome\" ]; then exec \"$HOME/.local/bin/client-chrome\" \"$1\" mcp; else exec npx -y @playwright/mcp@latest --browser chrome --user-data-dir \"$HOME/.config/chrome-clients/$1\"; fi",
+        "client-browser",
+        "cfa"
+      ]
+    }
+  }
+}
