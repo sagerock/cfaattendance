@@ -114,6 +114,9 @@
                 {% if s.email %}
                 <span class="text-ink-light text-xs ml-1">{{ s.email }}</span>
                 {% endif %}
+                <form method="post" action="{{ url_for('reports.toggle_excused', session_id=session.id, student_id=s.id) }}" class="inline">
+                    <button type="submit" class="text-xs ml-1 underline {{ 'text-sage-dark font-semibold' if s.id in excused_ids else 'text-ink-light' }}">{{ 'Excused (undo)' if s.id in excused_ids else 'Mark excused' }}</button>
+                </form>
             </div>
             {% endfor %}
         </div>

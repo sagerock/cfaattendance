@@ -287,9 +287,12 @@ def review_matches(session_id):
                 ))
 
         # Also confirm any unconfirmed auto-matches
-        Attendance.query.filter_by(session_id=session.id, confirmed=False).update(
-            {"confirmed": True}
-        )
+        # (excused-only marker rows stay unconfirmed: they are not attendance)
+        Attendance.query.filter(
+            Attendance.session_id == session.id,
+            Attendance.confirmed == False,  # noqa: E712
+            db.or_(Attendance.match_method.is_(None), Attendance.match_method != "excused"),
+        ).update({"confirmed": True}, synchronize_session=False)
 
         db.session.commit()
         flash("Matches confirmed and aliases saved.", "success")

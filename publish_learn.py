@@ -3,7 +3,8 @@
 Runs after the nightly autosync. For each course listed in LEARN_COHORTS it writes, per roster
 student with an email and per session held: minutes and status into Supabase
 public.cfa_learn_attendance (upsert on email+cohort+session_date) and the held dates into
-public.cfa_learn_attendance_sessions. Unmatched Zoom names (SkippedParticipant) are never read.
+public.cfa_learn_attendance_sessions. Unmatched Zoom names (SkippedParticipant) are never read, and unsure
+(unconfirmed) matches count as not seen until someone confirms them.
 
 Status rule (same as Deborah's Oct 20 spreadsheet): present = 60+ minutes, partial = 1-59,
 absent = not seen; excused only when Attendance.excused is set (Deborah marks it).
@@ -44,11 +45,14 @@ def build_rows():
         students = [s for s in Student.query.filter_by(course_id=course.id).all() if (s.email or "").strip()]
         for sess in sessions:
             held.append({"cohort": cohort, "session_date": sess.session_date.isoformat(), "label": sess.label})
-            att = {a.student_id: a for a in Attendance.query.filter_by(session_id=sess.id).all()}
+            all_att = Attendance.query.filter_by(session_id=sess.id).all()
+            # Minutes count only for confirmed matches; an unsure match is not shown to a student.
+            att = {a.student_id: a for a in all_att if a.confirmed}
+            excused_ids = {a.student_id for a in all_att if getattr(a, "excused", False)}
             for st in students:
                 a = att.get(st.id)
                 minutes = (a.total_minutes or 0) if a else 0
-                excused = bool(getattr(a, "excused", False)) if a else False
+                excused = st.id in excused_ids
                 rows.append({
                     "email": st.email.strip().lower(), "cohort": cohort, "cohort_title": title,
                     "session_date": sess.session_date.isoformat(), "minutes": minutes,

@@ -1,7 +1,8 @@
 import csv
 import io
 from datetime import date, datetime
-from flask import Blueprint, render_template, Response, request
+from flask import Blueprint, render_template, Response, request, redirect, url_for, flash
+from extensions import db
 from models import Course, Student, Session, Attendance, SkippedParticipant
 
 reports_bp = Blueprint("reports", __name__)
@@ -67,8 +68,16 @@ def session_report(session_id):
             a = att_by_student[s.id]
             present.append({"student": s, "minutes": a.total_minutes, "method": a.match_method})
 
+    # Excused marks (set by the program director). A marker row has 0 minutes, is unconfirmed and
+    # exists only to carry the mark; it is not an "unsure" match.
+    all_rows = Attendance.query.filter_by(session_id=session.id).all()
+    excused_ids = {a.student_id for a in all_rows if a.excused}
+
+    def _marker(a):
+        return not a.confirmed and not a.total_minutes and a.match_method == "excused"
+
     # Unconfirmed (uncertain)
-    unconfirmed = Attendance.query.filter_by(session_id=session.id, confirmed=False).all()
+    unconfirmed = [a for a in all_rows if not a.confirmed and not _marker(a)]
     uncertain = []
     for a in unconfirmed:
         s = Student.query.get(a.student_id)
@@ -90,7 +99,29 @@ def session_report(session_id):
         uncertain=uncertain,
         skipped=skipped,
         absent=absent,
+        excused_ids=excused_ids,
     )
+
+
+@reports_bp.route("/sessions/<int:session_id>/excuse/<int:student_id>", methods=["POST"])
+def toggle_excused(session_id, student_id):
+    """Mark or unmark an excused absence. Only the program director's word makes one (Jax item #4141)."""
+    session = Session.query.get_or_404(session_id)
+    student = Student.query.get_or_404(student_id)
+    if student.course_id != session.course_id:
+        return "student not in this course", 400
+    rows = Attendance.query.filter_by(session_id=session.id, student_id=student.id).all()
+    if rows:
+        new_value = not any(r.excused for r in rows)
+        for r in rows:
+            r.excused = new_value
+    else:
+        new_value = True
+        db.session.add(Attendance(session_id=session.id, student_id=student.id, total_minutes=0,
+                                  confirmed=False, match_method="excused", excused=True))
+    db.session.commit()
+    flash(f"{student.name}: {'excused' if new_value else 'no longer excused'}.", "success")
+    return redirect(url_for("reports.session_report", session_id=session.id))
 
 
 @reports_bp.route("/courses/<int:course_id>/attendance/export")
