@@ -558,6 +558,14 @@ def cron_auto_sync():
     except ValueError:
         days = 7
     summary = run_autosync(days=days)
+    # Student self-view on learn.* (Jax item #4141): publish matched attendance to Supabase.
+    # Off until SUPABASE_SERVICE_ROLE_KEY is set; never fails the import.
+    if os.environ.get("SUPABASE_SERVICE_ROLE_KEY"):
+        try:
+            from publish_learn import publish
+            summary["learn_publish"] = publish()
+        except Exception as exc:
+            summary["learn_publish"] = {"error": str(exc)[:200]}
     return jsonify(summary)
 
 

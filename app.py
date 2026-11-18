@@ -71,6 +71,10 @@ def create_app():
         if "meeting_uuid" not in session_cols:
             db.session.execute(text("ALTER TABLE session ADD COLUMN meeting_uuid TEXT"))
             db.session.commit()
+        attendance_cols = [c["name"] for c in inspector.get_columns("attendance")]
+        if "excused" not in attendance_cols:
+            db.session.execute(text("ALTER TABLE attendance ADD COLUMN excused BOOLEAN DEFAULT FALSE"))
+            db.session.commit()
         db.session.execute(text(
             "CREATE UNIQUE INDEX IF NOT EXISTS uq_session_course_meeting"
             " ON session (course_id, meeting_uuid)"

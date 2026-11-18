@@ -62,6 +62,7 @@ class Attendance(db.Model):
     match_confidence = db.Column(db.Float)
     match_method = db.Column(db.Text)
     confirmed = db.Column(db.Boolean, default=False)
+    excused = db.Column(db.Boolean, default=False)  # set only by the program director (Deborah); student self-view on learn.*
     student = db.relationship("Student")
     __table_args__ = (db.UniqueConstraint("session_id", "student_id"),)
 
