@@ -59,7 +59,7 @@ def upload_session(course_id):
     aliases = Alias.query.filter_by(course_id=course.id).all()
     matches = match_participants_to_roster(consolidated, students, aliases, course.id)
 
-    # Save attendance records, deduplicating by student_id (keep highest confidence)
+    # Save attendance records, one row per student (minutes summed across their Zoom names)
     needs_review = False
     seen_students = {}  # student_id -> (match, attendance_obj)
     for m in matches:
@@ -67,14 +67,18 @@ def upload_session(course_id):
         if m["status"] == "auto" and sid:
             # Check for duplicate student assignment
             if sid in seen_students:
+                # Same student under two Zoom names (e.g. "Erin" and "Erin Adams"): add the minutes,
+                # as the directors' spreadsheets do. An unsure row for them becomes this confirmed one.
                 prev_m, prev_att = seen_students[sid]
-                if m["confidence"] > prev_m["confidence"]:
-                    # Replace: update previous record
+                if prev_att.confirmed:
+                    prev_att.total_minutes = (prev_att.total_minutes or 0) + m["participant"]["total_minutes"]
+                else:
                     prev_att.total_minutes = m["participant"]["total_minutes"]
+                    prev_att.confirmed = True
+                if m["confidence"] > (prev_m["confidence"] or 0):
                     prev_att.match_confidence = m["confidence"]
                     prev_att.match_method = m["method"]
-                    seen_students[sid] = (m, prev_att)
-                # else keep previous, skip this one
+                seen_students[sid] = (m, prev_att)
             else:
                 att = Attendance(
                     session_id=session.id,

@@ -155,12 +155,18 @@ def import_meeting(course, meeting_uuid, label="", meeting_data=None, require_fi
         sid = m["student_id"]
         if m["status"] == "auto" and sid:
             if sid in seen_students:
+                # Same student under two Zoom names (e.g. "Erin" and "Erin Adams"): add the minutes,
+                # as the directors' spreadsheets do. An unsure row for them becomes this confirmed one.
                 prev_m, prev_att = seen_students[sid]
-                if m["confidence"] > prev_m["confidence"]:
+                if prev_att.confirmed:
+                    prev_att.total_minutes = (prev_att.total_minutes or 0) + m["participant"]["total_minutes"]
+                else:
                     prev_att.total_minutes = m["participant"]["total_minutes"]
+                    prev_att.confirmed = True
+                if m["confidence"] > (prev_m["confidence"] or 0):
                     prev_att.match_confidence = m["confidence"]
                     prev_att.match_method = m["method"]
-                    seen_students[sid] = (m, prev_att)
+                seen_students[sid] = (m, prev_att)
             else:
                 att = Attendance(
                     session_id=session.id, student_id=sid,
