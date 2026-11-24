@@ -19,6 +19,9 @@ from datetime import datetime, timezone
 from models import Course, Student, Session, Attendance
 
 PRESENT_MINUTES = 60
+# A meeting in the shared Zoom room counts as a held class only if at least this many roster students
+# were present 60+ minutes (stray short meetings in the room had a handful).
+MIN_CLASS_PRESENT = 10
 # attendance-app course name -> (learn cohort slug, title shown to the student)
 LEARN_COHORTS = {
     "Explorations Fall 2026-27": ("explorations-fall-2026-2027", "Explorations, Fall 2026–2027 cohort"),
@@ -48,6 +51,10 @@ def build_rows():
             all_att = Attendance.query.filter_by(session_id=sess.id).all()
             # Minutes count only for confirmed matches; an unsure match is not shown to a student.
             att = {a.student_id: a for a in all_att if a.confirmed}
+            if sum(1 for a in att.values() if (a.total_minutes or 0) >= PRESENT_MINUTES) < MIN_CLASS_PRESENT:
+                held.pop()
+                print(f"skip: {course_name} {sess.session_date} has fewer than {MIN_CLASS_PRESENT} present", file=sys.stderr)
+                continue
             excused_ids = {a.student_id for a in all_att if getattr(a, "excused", False)}
             for st in students:
                 a = att.get(st.id)
