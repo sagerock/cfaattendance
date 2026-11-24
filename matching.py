@@ -233,20 +233,27 @@ def _match_single(participant, by_name, by_email, by_phone, alias_map, all_stude
                         "confidence": 1.0, "method": "phone", "status": "auto"}
 
     # 5. Fuzzy match
+    # A partial hit alone ("Eva" inside "Eva Kirchner", "Bianca" inside two rostered Biancas) is not
+    # proof of identity: it goes to review unless the whole name is also close (token_sort >= 85)
+    # and no other student scores as high.
     best_score = 0
     best_student = None
+    best_whole = 0
+    tied = False
     for s in all_students:
-        # Try all name variants against student name
+        s_best = 0
+        s_whole = 0
         for name_variant in [cleaned] + [a for a in aliases if a.lower() != cleaned_lower]:
-            score = max(
-                fuzz.token_sort_ratio(name_variant.lower(), s.name.lower()),
-                fuzz.partial_ratio(name_variant.lower(), s.name.lower()),
-            )
-            if score > best_score:
-                best_score = score
-                best_student = s
+            whole = fuzz.token_sort_ratio(name_variant.lower(), s.name.lower())
+            score = max(whole, fuzz.partial_ratio(name_variant.lower(), s.name.lower()))
+            s_best = max(s_best, score)
+            s_whole = max(s_whole, whole)
+        if s_best > best_score:
+            best_score, best_student, best_whole, tied = s_best, s, s_whole, False
+        elif s_best == best_score and s_best > 0 and best_student is not None:
+            tied = True
 
-    if best_student and best_score >= 85:
+    if best_student and best_score >= 85 and best_whole >= 85 and not tied:
         return {"student_id": best_student.id, "student_name": best_student.name,
                 "confidence": best_score / 100.0, "method": "fuzzy", "status": "auto"}
     elif best_student and best_score >= 60:
